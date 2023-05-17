@@ -8,14 +8,16 @@
 # Aliases
 ################################################################################
 
-#alias grh='history | grep'
-
 alias which='type -all'
 alias path='echo -e ${PATH//:/\\n}'
 alias disp='echo $DISPLAY'
 
 if type cygpath > /dev/null 2>&1; then
 	alias winpwd='cygpath -w $(pwd)'
+fi
+
+if type explorer.exe > /dev/null 2>&1; then
+	alias explorer='explorer.exe'
 fi
 
 # The 'ls' family ##############################################################
