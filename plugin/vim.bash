@@ -25,9 +25,11 @@ fi
 if type nvim > /dev/null 2>&1; then
 	alias vi='nvim'
 	alias view='nvim -R'
+	alias vimdiff='nvim -d'
 elif type vimx > /dev/null 2>&1; then
 	alias vi='vimx'
 	alias view='vimx -R'
+	alias vimdiff='vimx -d'
 elif type vim > /dev/null 2>&1; then
 	alias vi='vim'
 	alias view='vim -R'

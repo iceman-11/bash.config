@@ -91,11 +91,23 @@ export PATH
 
 ################################################################################
 #
-# Source the scripts in plugin
+# Source the scripts in plugin and local
 #
 ################################################################################
 
+# For generic plugins
 for script in "${BASH_HOME}"/plugin/*.bash ; do
+	if [ -r "$script" ]; then
+		if [ "${-#*i}" != "$-" ]; then
+			. "$script"
+		else
+			. "$script" > /dev/null 2>&1
+		fi
+	fi
+done
+
+# For plugins local to this computer
+for script in "${BASH_HOME}"/local/*.bash ; do
 	if [ -r "$script" ]; then
 		if [ "${-#*i}" != "$-" ]; then
 			. "$script"
