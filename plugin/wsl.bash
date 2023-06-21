@@ -4,5 +4,5 @@ if ! [[ $(uname -r) =~ WSL2$ ]]; then
 fi
 
 if ! [[ -z "$USERPROFILE" ]]; then
-    alias cdd='cd $USERPROFILE/devel'
+    alias cdp='cd $USERPROFILE/projects'
 fi
