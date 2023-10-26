@@ -89,7 +89,8 @@ function __set_prompt {
 
 # Save and update history after each command
 PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }"
-PROMPT_COMMAND+="history -n; history -w; history -c; history -r"
+# PROMPT_COMMAND+="history -n; history -w; history -c; history -r"
+PROMPT_COMMAND+="history -a; history -c; history -r"
 export PROMPT_COMMAND
 
 # Set theme
