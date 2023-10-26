@@ -29,6 +29,6 @@ export HISTSIZE=50000
 export HISTFILESIZE=50000
 
 # Ignore duplicate lines
-export HISTCONTROL=ignoredups:erasedups
+export HISTCONTROL=ignoreboth:erasedups
 
 ################################################################################
