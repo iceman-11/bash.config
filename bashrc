@@ -33,11 +33,27 @@ export XAUTHORITY=${XAUTHORITY:=${HOME}/.Xauthority}
 # Set UTF-8 locale
 ################################################################################
 
-LOCALE="C.UTF-8"
+LOCALE_PREFERENCES=("en_US.utf8" "en_GB.utf8" "C.utf8")
+ALL_LOCALES=$(locale -a 2> /dev/null)
 
-if locale -a | grep $LOCALE > /dev/null 2>&1; then
-	export LANG=$LOCALE
-fi
+function __get_locale {
+	local matching_locales match_result
+	matching_locales=$(printf '%s\n' $ALL_LOCALES | egrep "\<($1)\>")
+	match_result=$?
+
+	printf '%s\n' $matching_locales | head -1
+	return $match_result
+}
+
+for locale_preference in ${LOCALE_PREFERENCES[@]}; do
+	locale=$(__get_locale $locale_preference)
+	result=$?
+
+	if [ $result -eq 0 ]; then
+			export LANG=$locale
+			break
+	fi
+done
 
 ################################################################################
 #
@@ -95,27 +111,25 @@ export PATH
 #
 ################################################################################
 
-# For generic plugins
-for script in "${BASH_HOME}"/plugin/*.bash ; do
-	if [ -r "$script" ]; then
-		if [ "${-#*i}" != "$-" ]; then
-			. "$script"
-		else
-			. "$script" > /dev/null 2>&1
-		fi
-	fi
-done
+PLUGINS=$(ls -1U ${BASH_HOME}/{plugin,local}/*.bash 2> /dev/null)
 
-# For plugins local to this computer
-for script in "${BASH_HOME}"/local/*.bash ; do
-	if [ -r "$script" ]; then
-		if [ "${-#*i}" != "$-" ]; then
-			. "$script"
-		else
-			. "$script" > /dev/null 2>&1
+function __source_plugins {
+	local IFS=$'\n'
+
+	for script in $PLUGINS; do
+		if [ -r "$script" ]; then
+			if [ "${-#*i}" != "$-" ]; then
+				. "$script"
+			else
+				. "$script" > /dev/null 2>&1
+			fi
 		fi
-	fi
-done
+	done
+
+	return 0
+}
+
+__source_plugins
 
 ################################################################################
 #
@@ -144,7 +158,9 @@ shopt -s no_empty_cmd_completion
 # Clean-up functions
 ################################################################################
 
+unset __get_locale
 unset __merge_paths
 unset __set_display
+unset __source_plugins
 
 ################################################################################
