@@ -111,27 +111,25 @@ export PATH
 #
 ################################################################################
 
-# For generic plugins
-for script in "${BASH_HOME}"/plugin/*.bash ; do
-	if [ -r "$script" ]; then
-		if [ "${-#*i}" != "$-" ]; then
-			. "$script"
-		else
-			. "$script" > /dev/null 2>&1
-		fi
-	fi
-done
+PLUGINS=$(ls -1U ${BASH_HOME}/{plugin,local}/*.bash 2> /dev/null)
 
-# For plugins local to this computer
-for script in "${BASH_HOME}"/local/*.bash ; do
-	if [ -r "$script" ]; then
-		if [ "${-#*i}" != "$-" ]; then
-			. "$script"
-		else
-			. "$script" > /dev/null 2>&1
+function __source_plugins {
+	local IFS=$'\n'
+
+	for script in $PLUGINS; do
+		if [ -r "$script" ]; then
+			if [ "${-#*i}" != "$-" ]; then
+				. "$script"
+			else
+				. "$script" > /dev/null 2>&1
+			fi
 		fi
-	fi
-done
+	done
+
+	return 0
+}
+
+__source_plugins
 
 ################################################################################
 #
@@ -163,5 +161,6 @@ shopt -s no_empty_cmd_completion
 unset __get_locale
 unset __merge_paths
 unset __set_display
+unset __source_plugins
 
 ################################################################################
