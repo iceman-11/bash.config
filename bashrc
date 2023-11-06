@@ -33,11 +33,27 @@ export XAUTHORITY=${XAUTHORITY:=${HOME}/.Xauthority}
 # Set UTF-8 locale
 ################################################################################
 
-LOCALE="C.UTF-8"
+LOCALE_PREFERENCES=("en_US.utf8" "en_GB.utf8" "C.utf8")
+ALL_LOCALES=$(locale -a 2> /dev/null)
 
-if locale -a | grep $LOCALE > /dev/null 2>&1; then
-	export LANG=$LOCALE
-fi
+function __get_locale {
+	local matching_locales match_result
+	matching_locales=$(printf '%s\n' $ALL_LOCALES | egrep "\<($1)\>")
+	match_result=$?
+
+	printf '%s\n' $matching_locales | head -1
+	return $match_result
+}
+
+for locale_preference in ${LOCALE_PREFERENCES[@]}; do
+	locale=$(__get_locale $locale_preference)
+	result=$?
+
+	if [ $result -eq 0 ]; then
+			export LANG=$locale
+			break
+	fi
+done
 
 ################################################################################
 #
