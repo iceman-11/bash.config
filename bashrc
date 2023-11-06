@@ -160,6 +160,7 @@ shopt -s no_empty_cmd_completion
 # Clean-up functions
 ################################################################################
 
+unset __get_locale
 unset __merge_paths
 unset __set_display
 
