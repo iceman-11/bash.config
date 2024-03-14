@@ -33,7 +33,7 @@ process_is_ssh_agent() {
 		return $FAILURE
 	fi
 
-	if [[ $OS =~ ^mingw64 ]]; then
+	if [[ $OS =~ ^mingw64 || $OS =~ ^msys ]]; then
 		PROCESSES=$(ps -u $UID -p $1 -s | awk '{print $4, $1}' | column -t)
 	else
 		PROCESSES=$(ps -p $1 -ouid,comm,pid | awk '$1 == uid {print $2, $3}' uid=$UID)
@@ -93,7 +93,7 @@ ssh_agent_start() {
 
 ssh_agents_cleanup() {
 
-	if [[ $OS =~ ^mingw64 ]]; then
+	if [[ $OS =~ ^mingw64 || $OS =~ ^msys ]]; then
 		SSH_AGENTS=$(ps -u $UID -s | awk '$4 ~ /\<ssh-agent\>/ {print $1}')
 	else
 		SSH_AGENTS=$(ps -u $UID -ocomm,pid | awk '$1 ~/^ssh-agent$/ {print $2}')
