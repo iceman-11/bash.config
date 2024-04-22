@@ -1,12 +1,6 @@
 # FZF
 # ---
 
-FZF_HOME="${HOME}/.fzf"
-
-if [[ ! -d "${FZF_HOME}" ]]; then
-  return
-fi
-
 # Exit if on 'mintty'
 # -------------------
 if [[ ${TERM_PROGRAM} == 'mintty' ]]; then
@@ -15,14 +9,13 @@ fi
 
 # Setup fzf
 # ---------
-if [[ ! "$PATH" == *${FZF_HOME}/bin* ]]; then
-  export PATH="${PATH:+${PATH}:}${FZF_HOME}/bin"
+if type fzf > /dev/null 2>&1; then
+  eval "$(fzf --bash)"
 fi
 
-# Auto-completion
+# Use fd with fzf
 # ---------------
-[[ $- == *i* ]] && source "${FZF_HOME}/shell/completion.bash" 2> /dev/null
-
-# Key bindings
-# ------------
-source "${FZF_HOME}/shell/key-bindings.bash"
+if type fd > /dev/null 2>&1; then
+  export FZF_DEFAULT_COMMAND='fd --type f --strip-cwd-prefix'
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+fi
