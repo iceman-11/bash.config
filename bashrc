@@ -109,7 +109,7 @@ export PATH
 #
 ################################################################################
 
-PLUGINS=$(ls -1U ${BASH_HOME}/{plugin,local}/*.bash 2> /dev/null)
+PLUGINS=$(ls -1U ${BASH_HOME}/{init,plugin,local}/*.bash 2> /dev/null)
 
 function __source_plugins {
 	local oifs=$IFS
