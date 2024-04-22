@@ -69,8 +69,7 @@ function __merge_paths {
 	local dir
 	local path
 
-	local oifs=$IFS
-	IFS=$'\n'
+	local IFS=$'\n'
 
 	for dir in ${args}; do
 
@@ -87,7 +86,6 @@ function __merge_paths {
 		fi
 	done
 
-	IFS=$oifs
 	echo $path
 }
 
@@ -114,10 +112,12 @@ export PATH
 PLUGINS=$(ls -1U ${BASH_HOME}/{plugin,local}/*.bash 2> /dev/null)
 
 function __source_plugins {
+	local oifs=$IFS
 	local IFS=$'\n'
 
 	for script in $PLUGINS; do
 		if [ -r "$script" ]; then
+			local IFS=$oifs
 			if [ "${-#*i}" != "$-" ]; then
 				. "$script"
 			else
