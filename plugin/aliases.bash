@@ -53,6 +53,14 @@ fi
 # Functions
 ################################################################################
 
+# Find duplicate files
+
+function dups() {
+	find $* -type d -name .git -prune -false \
+		-o -type f ! -empty -exec sha1sum {} + | \
+		sort -k1,1 | uniq -w40 -d --all-repeated=separate
+}
+
 # Grep from history
 
 function hgrep () {
