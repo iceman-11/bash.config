@@ -97,7 +97,7 @@ export PROMPT_COMMAND
 THEME="${XDG_CONFIG_HOME}/themes/iceman.omp.json"
 if type oh-my-posh > /dev/null 2>&1 && [ -r $THEME ]; then
 	export VIRTUAL_ENV_DISABLE_PROMPT=1
-	eval "$(oh-my-posh init bash --config ${THEME})"
+	eval "$(oh-my-posh init bash --config ${THEME})" 2> /dev/null
 else
 	__set_prompt
 	export PS1
