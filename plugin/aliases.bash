@@ -41,12 +41,12 @@ if (echo a | grep --color=auto a) > /dev/null 2>&1; then
 	alias grep='grep --color=auto'
 fi
 
-if (echo a | fgrep --color=auto a) > /dev/null 2>&1; then
-	alias fgrep='fgrep --color=auto'
+if (echo a | grep -F --color=auto a) > /dev/null 2>&1; then
+	alias fgrep='grep -F --color=auto'
 fi
 
-if (echo a | egrep --color=auto a) > /dev/null 2>&1; then
-	alias egrep='egrep --color=auto'
+if (echo a | grep -E --color=auto a) > /dev/null 2>&1; then
+	alias egrep='grep -E --color=auto'
 fi
 
 ################################################################################

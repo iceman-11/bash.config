@@ -38,7 +38,7 @@ ALL_LOCALES=$(locale -a 2> /dev/null)
 
 function __get_locale {
 	local matching_locales match_result
-	matching_locales=$(printf '%s\n' $ALL_LOCALES | egrep "\<($1)\>")
+	matching_locales=$(printf '%s\n' $ALL_LOCALES | grep -E "\<($1)\>")
 	match_result=$?
 
 	printf '%s\n' $matching_locales | head -1

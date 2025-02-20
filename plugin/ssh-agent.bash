@@ -100,7 +100,7 @@ ssh_agents_cleanup() {
 	fi
 
 	if [ ! -z "$SSH_AGENT_PID" ]; then
-		SSH_AGENTS=$(echo "${SSH_AGENTS}" | egrep -v "^${SSH_AGENT_PID}$")
+		SSH_AGENTS=$(echo "${SSH_AGENTS}" | grep -Ev "^${SSH_AGENT_PID}$")
 	fi
 
 	if [ ! -z "$SSH_AGENTS" ]; then
