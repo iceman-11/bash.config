@@ -94,7 +94,7 @@ PROMPT_COMMAND+="history -a; history -c; history -r"
 export PROMPT_COMMAND
 
 # Set theme
-THEME="${XDG_CONFIG_HOME}/themes/iceman.omp.json"
+THEME="${XDG_CONFIG_HOME}/oh-my-posh/themes/iceman.omp.json"
 if type oh-my-posh > /dev/null 2>&1 && [ -r $THEME ]; then
 	export VIRTUAL_ENV_DISABLE_PROMPT=1
 	eval "$(oh-my-posh init bash --config ${THEME})" 2> /dev/null
