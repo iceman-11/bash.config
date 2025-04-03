@@ -100,7 +100,7 @@ case $OS in
 esac
 
 ### Add home directory, clean-up and export PATH
-PATH=$(__merge_paths ${PATH}:${HOME}/bin)
+PATH=$(__merge_paths ${PATH}:${HOME}/.local/bin:${HOME}/bin)
 export PATH
 
 ################################################################################
