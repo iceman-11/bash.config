@@ -10,7 +10,7 @@
 NO_TTY=`tty > /dev/null 2>&1; echo $?`
 OS=$(uname)
 
-XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
+export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
 BASH_HOME="${XDG_CONFIG_HOME}/bash"
 
 # Setup DISPLAY ################################################################
@@ -100,7 +100,7 @@ case $OS in
 esac
 
 ### Add home directory, clean-up and export PATH
-PATH=$(__merge_paths ${PATH}:${HOME}/bin)
+PATH=$(__merge_paths ${PATH}:${HOME}/.local/bin:${HOME}/bin)
 export PATH
 
 ################################################################################
