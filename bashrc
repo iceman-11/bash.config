@@ -10,7 +10,7 @@
 NO_TTY=`tty > /dev/null 2>&1; echo $?`
 OS=$(uname)
 
-XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
+export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
 BASH_HOME="${XDG_CONFIG_HOME}/bash"
 
 # Setup DISPLAY ################################################################
