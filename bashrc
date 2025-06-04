@@ -51,6 +51,7 @@ for locale_preference in ${LOCALE_PREFERENCES[@]}; do
 
 	if [ $result -eq 0 ]; then
 			export LANG=$locale
+			export LC_ALL=$locale
 			break
 	fi
 done
