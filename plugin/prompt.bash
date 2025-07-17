@@ -87,10 +87,26 @@ function __set_prompt {
 
 }
 
-# Save and update history after each command
-PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }"
-# PROMPT_COMMAND+="history -n; history -w; history -c; history -r"
-PROMPT_COMMAND+="history -a; history -c; history -r"
+# Configure PROMPT_COMMAND
+function prompt_command {
+        history -a  # Append new history lines to history file
+        history -c  # Clear history
+        history -r  # Reload history from history file
+
+        # If running tmux and SSH_AUTH_SOCK is not a socket
+        if [ -n "$TMUX" ] && [ ! -S "$SSH_AUTH_SOCK" ]; then
+
+                # Refresh SSH_AUTH_SOCK
+                eval "$(tmux show-environment -s SSH_AUTH_SOCK 2> /dev/null)"
+        fi
+}
+
+# Add prompt_command, if it's not already there
+if [[ "$PROMPT_COMMAND" != *"prompt_command"* ]]; then
+        PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }"
+        PROMPT_COMMAND+="prompt_command"
+fi
+
 export PROMPT_COMMAND
 
 # Set theme
