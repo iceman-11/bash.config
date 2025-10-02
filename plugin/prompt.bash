@@ -9,61 +9,69 @@ function __jobs_ps1 {
 
 	# Only display if there are jobs
 	if [ "$job_count" -gt 0 ]; then
-		printf "!%s" "$job_count"
+		printf " !%s" "$job_count"
+	fi
+}
+
+function __virtual_env_ps1 {
+	# Check if we're in a virtual environment
+	if [ -n "$VIRTUAL_ENV" ]; then
+		# Extract the virtual environment name from the path
+		local virtual_env_name=$(basename "$VIRTUAL_ENV")
+		printf " (%s)" "$virtual_env_name"
 	fi
 }
 
 function __set_prompt {
 
-	local __prompt_colors __prompt_jobs_style __prompt_jobs_flag
-	local __prompt_username_style __prompt_at_symbol_style __prompt_hostname_style
-	local __prompt_path_style __prompt_end_style __prompt_reset_colors
-	local __prompt_git_style __prompt_time_style __prompt_git_ps1
+	local __style_username=""
+	local __style_at_symbol=""
+	local __style_hostname=""
+	local __style_path=""
+	local __style_git=""
+	local __style_virtual_env=""
+	local __style_jobs=""
+	local __style_time=""
+	local __style_end=""
+	local __style_reset=""
 
 	# Jobs prompt
-	__prompt_jobs_flag='$(__jobs_ps1)'
+	local __prompt_jobs='$(__jobs_ps1)'
 
 	# Git Prompt
+	local __prompt_git
 	if __git_ps1 &> /dev/null; then
-		__prompt_git_ps1='$(__git_ps1 " [%s] ")'
+		__prompt_git='$(__git_ps1 " [%s]")'
 	fi
+
+	# Virtual environment prompt
+	local __prompt_virtual_env='$(__virtual_env_ps1)'
 
 	# Check if stdout is a terminal...
 	if test -t 1; then
-
-		__prompt_colors=$(tput colors)
+		local __colors=$(tput colors)
 
 		# See if it supports colors...
-		if test -n "${__prompt_colors}" && test ${__prompt_colors} -ge 8; then
+		if test -n "${__colors}" && test ${__colors} -ge 8; then
 
-			__prompt_jobs_style="\[\e[0;31m\]"
+			__style_jobs="\[\e[0;31m\]"
 
 			if [ $EUID -eq "0" ]; then
 				# For root:
-				__prompt_end_style="\[\e[0;31m\]"
+				__style_end="\[\e[0;31m\]"
 			else
 				# For normal users:
-				__prompt_end_style="\[\e[0;32m\]"
+				__style_end="\[\e[0;32m\]"
 			fi
 
-			__prompt_username_style="\[\e[0;37m\]"
-			__prompt_at_symbol_style="\[\e[0;90m\]"
-			__prompt_hostname_style="\[\e[0;37m\]"
-			__prompt_path_style="\[\e[0;90m\]"
-			__prompt_git_style="\[\e[0;32m\]"
-			__prompt_time_style="\[\e[0;90m\]"
-			__prompt_reset_colors="\[\e[0m\]"
-		else
-
-			__prompt_jobs_style=""
-			__prompt_end_style=""
-			__prompt_username_style=""
-			__prompt_at_symbol_style=""
-			__prompt_hostname_style=""
-			__prompt_path_style=""
-			__prompt_git_style=""
-			__prompt_time_style=""
-			__prompt_reset_colors=""
+			__style_username="\[\e[0;37m\]"
+			__style_at_symbol="\[\e[0;90m\]"
+			__style_hostname="\[\e[0;37m\]"
+			__style_path="\[\e[0;90m\]"
+			__style_git="\[\e[0;32m\]"
+			__style_virtual_env="\[\e[0;93m\]"
+			__style_time="\[\e[0;90m\]"
+			__style_reset="\[\e[0m\]"
 		fi
 	fi
 
@@ -79,22 +87,25 @@ function __set_prompt {
 	esac
 
 	PS1+=$'\n'
-	PS1+=${__prompt_username_style}"\u"${__prompt_reset_colors}
-	PS1+=${__prompt_at_symbol_style}"@"${__prompt_reset_colors}
-	PS1+=${__prompt_hostname_style}"\h "${__prompt_reset_colors}
-	PS1+=${__prompt_path_style}" \w "${__prompt_reset_colors}
-	PS1+=${__prompt_git_style}${__prompt_git_ps1}${__prompt_reset_colors}
-	PS1+=${__prompt_jobs_style}${__prompt_jobs_flag}${__prompt_reset_colors}
+	PS1+=${__style_username}"\u"${__style_reset}
+	PS1+=${__style_at_symbol}"@"${__style_reset}
+	PS1+=${__style_hostname}"\h"${__style_reset}
+	PS1+=${__style_path}" \w"${__style_reset}
+	PS1+=${__style_git}${__prompt_git}${__style_reset}
+	PS1+=${__style_virtual_env}${__prompt_virtual_env}${__style_reset}
+	PS1+=${__style_jobs}${__prompt_jobs}${__style_reset}
 	PS1+=$'\n'
-	PS1+=${__prompt_time_style}"\A "${__prompt_reset_colors}
-	PS1+=${__prompt_end_style}"\\$"${__prompt_reset_colors}" "
+	PS1+=${__style_time}"\A "${__style_reset}
+	PS1+=${__style_end}"\\$"${__style_reset}" "
 
 }
+
+# Disable default virtual environment prompt
+export VIRTUAL_ENV_DISABLE_PROMPT=1
 
 # Set theme
 THEME="${XDG_CONFIG_HOME}/oh-my-posh/themes/iceman.omp.json"
 if type oh-my-posh > /dev/null 2>&1 && [ -r $THEME ]; then
-	export VIRTUAL_ENV_DISABLE_PROMPT=1
 	eval "$(oh-my-posh init bash --config ${THEME})" 2> /dev/null
 else
 	__set_prompt
@@ -109,7 +120,6 @@ function prompt_command {
 
 	# If running tmux and SSH_AUTH_SOCK is not a socket
 	if [ -n "$TMUX" ] && [ ! -S "$SSH_AUTH_SOCK" ]; then
-
 		# Refresh SSH_AUTH_SOCK
 		eval "$(tmux show-environment -s SSH_AUTH_SOCK 2> /dev/null)"
 	fi
