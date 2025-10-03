@@ -1,9 +1,9 @@
 ################################################################################
 #
-# Decription :
+# Description:
 # Personal .bashrc file
 #
-# Author     : Stéphane Lambert
+# Author: Stéphane LAMBERT
 #
 ################################################################################
 
@@ -110,7 +110,7 @@ export PATH
 #
 ################################################################################
 
-PLUGINS=$(ls -1U ${BASH_HOME}/{init,plugin,local}/*.bash 2> /dev/null)
+PLUGINS=$(ls -1U ${BASH_HOME}/{init,init/local,plugin,plugin/local,post,post/local}/*.bash 2> /dev/null)
 
 function __source_plugins {
 	local oifs=$IFS
@@ -138,7 +138,7 @@ __source_plugins
 #
 ################################################################################
 
-set -o notify           # Report exit status of bg jobs immediatly [-o]
+set -o notify           # Report exit status of bg jobs immediately [-o]
 set +o noclobber        # Allow to overwrite file with redirection [+o]
 set +o ignoreeof        # Allow to exit with Ctrl-D [+o]
 set +o nounset          # Error when using an undefined variable [-o]
