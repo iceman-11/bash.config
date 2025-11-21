@@ -5,7 +5,8 @@
 # Clean-up history file
 if [ "${-#*i}" != "$-" ]; then
 	TMPFILE=$(mktemp)
-	nl $HISTFILE | sort -rn | sort -uk2 | sort -nk1 | cut -f2- > $TMPFILE
+	nl $HISTFILE | sort -rn | sort -uk2 | sort -nk1 | cut -f2- | \
+		awk '/^#[0-9]+$/ { ts=$0; next } { if (ts) print ts; ts=""; if (NF) print }' > $TMPFILE
 	cp $TMPFILE $HISTFILE
 	rm $TMPFILE
 fi
