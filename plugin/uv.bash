@@ -3,7 +3,7 @@ if type uv > /dev/null 2>&1; then
 	eval "$(uv generate-shell-completion bash)"
 fi
 
-if type uv > /dev/null 2>&1; then
+if type uvx > /dev/null 2>&1; then
 	eval "$(uvx --generate-shell-completion bash)"
 fi
 
