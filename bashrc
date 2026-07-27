@@ -7,6 +7,15 @@
 #
 ################################################################################
 
+# Bail out early for non-interactive shells (e.g. login shells sourced by a
+# display manager during graphical session start-up). Without this, DISPLAY/
+# XAUTHORITY overrides and plugin side effects below can run in that context
+# and hang or break the session before the desktop ever appears.
+case $- in
+	*i*) ;;
+	  *) return ;;
+esac
+
 NO_TTY=`tty > /dev/null 2>&1; echo $?`
 OS=$(uname)
 
