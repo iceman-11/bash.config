@@ -75,10 +75,10 @@ checks='
 		*) echo "PATH lacks ~/.local/bin:~/bin:<inherited> in this order: ${PATH:0:200}" >&2 ;;
 	esac
 
-	# A nested shell keeps the PATH it inherits (e.g. an activated venv first)
+	# A nested shell keeps the PATH it inherits unchanged (e.g. a venv first)
 	nested=$(PATH="$HOME/venv:$PATH" "$BASH" --rcfile "$HOME/.config/bash/bashrc" \
 		-ic "printf %s \"\$PATH\"" 2> /dev/null < /dev/null)
-	[[ $nested == "$HOME/venv:$HOME/.local/bin:"* ]] ||
+	[[ $nested == "$HOME/venv:$PATH"* ]] ||
 		echo "PATH reordered in a nested shell: ${nested:0:200}" >&2
 
 	# System tools come from /usr/bin, not from a Windows directory
