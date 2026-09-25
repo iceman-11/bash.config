@@ -282,6 +282,18 @@ checks='
 		[[ -z $(nested "type -t cdp") ]] || echo "cdp defined outside WSL and Git Bash" >&2
 	fi
 
+	# bashrc: an LC_* variable or LANG naming a locale that is not installed
+	# (e.g. en_BE.UTF-8 from KDE Plasma) is dropped; installed ones are kept.
+	# Only where locale -a lists the installed locales (not with musl).
+	if [[ -n $(locale -a 2> /dev/null) ]]; then
+		lc=$(LC_MONETARY=xx_YY.UTF-8 LC_PAPER=C nested "printf %s \"\${LC_MONETARY-unset}/\${LC_PAPER-unset}\"")
+		[[ $lc == unset/C ]] || echo "LC_* not installed: LC_MONETARY/LC_PAPER = $lc (expected unset/C)" >&2
+		# (a UTF-8 LANG alone is trusted without starting a process; it is
+		# checked when an LC_* variable makes the configuration read the list)
+		lang=$(LANG=xx_YY.UTF-8 LC_PAPER=C nested "printf %s \"\$LANG\"")
+		[[ $lang != xx_YY.UTF-8 ]] || echo "LANG not installed was kept: $lang" >&2
+	fi
+
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
 	exit 0
 '
