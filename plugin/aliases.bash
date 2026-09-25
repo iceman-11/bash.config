@@ -74,8 +74,8 @@ function hgrep () {
 function xtitle () {
 
 	case $TERM in
-		xterm* | screen* | rxvt | cygwin )
-			echo -e -n "\033]0;$*\007"
+		xterm* | tmux* | screen* | rxvt* | alacritty | wezterm | foot* | cygwin )
+			printf '\033]0;%s\007' "$*"
 		;;
 	esac
 }
