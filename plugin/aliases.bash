@@ -23,7 +23,13 @@ fi
 # The 'ls' family ##############################################################
 
 if [ -x /usr/bin/dircolors ]; then
-	test -r "${HOME}/.dircolors" && eval "$(dircolors -b "${HOME}/.dircolors")" || eval "$(dircolors -b)"
+	if [ -r "${HOME}/.dircolors" ]; then
+		eval "$(dircolors -b "${HOME}/.dircolors")"
+	elif __cache_output dircolors dircolors -b; then
+		# The default colours only change with dircolors itself: cached
+		# shellcheck source=/dev/null disable=SC2154 # set by __cache_output
+		. "$__cache_file"
+	fi
 fi
 
 if ls --color=auto -d > /dev/null 2>&1; then
