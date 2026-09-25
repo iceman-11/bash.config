@@ -19,19 +19,6 @@ esac
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
 BASH_HOME="${XDG_CONFIG_HOME}/bash"
 
-# Setup DISPLAY ################################################################
-
-function __set_display() {
-	local host
-
-	if [[ -t 0 ]] && [ ! "$DISPLAY" ]; then
-		host=$(who -m | awk '{print $6}' | sed 's/^(//; s/)$//')
-		export DISPLAY="${host}:0.0"
-	fi
-}
-
-__set_display
-
 ################################################################################
 # Set XAUTHORITY
 ################################################################################
@@ -205,7 +192,6 @@ shopt -s no_empty_cmd_completion
 
 unset -f __set_locale
 unset -f __merge_paths
-unset -f __set_display
 unset -f __cache_output
 
 ################################################################################
