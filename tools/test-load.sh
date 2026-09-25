@@ -67,10 +67,12 @@ checks='
 	done
 	[[ -n $PS1 ]] || echo "MISSING PS1" >&2
 
-	# Home bin directories first, then the inherited PATH in its order
+	# Home bin directories, then the inherited PATH in its order (a plugin
+	# such as Homebrew may put its own directories in front)
 	case $PATH in
-		"$HOME/.local/bin:$HOME/bin:$HOME/inherited:"*) ;;
-		*) echo "PATH does not start with ~/.local/bin:~/bin:<inherited>: ${PATH:0:200}" >&2 ;;
+		"$HOME/.local/bin:$HOME/bin:$HOME/inherited:"* | \
+		*":$HOME/.local/bin:$HOME/bin:$HOME/inherited:"*) ;;
+		*) echo "PATH lacks ~/.local/bin:~/bin:<inherited> in this order: ${PATH:0:200}" >&2 ;;
 	esac
 
 	# A nested shell keeps the PATH it inherits (e.g. an activated venv first)
