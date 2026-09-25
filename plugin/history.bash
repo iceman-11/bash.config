@@ -12,7 +12,7 @@ __cleanup_history() {
 	local lockdir="${HISTFILE}.lock"
 	local tmpfile size
 
-	# Remove stale lock older than 60 seconds
+	# Remove a stale lock: find -mmin +1 matches after more than a minute
 	if [ -d "$lockdir" ]; then
 		find "$lockdir" -maxdepth 0 -mmin +1 -exec rmdir {} \; 2>/dev/null
 	fi
@@ -74,6 +74,8 @@ if [[ -n $HISTFILE ]]; then
 
 	unset __history_stamp __history_last __history_now
 fi
+
+unset -f __cleanup_history
 
 # Try to save multiple lines cmd to one history entry
 shopt -s cmdhist
