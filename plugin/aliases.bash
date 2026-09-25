@@ -13,7 +13,7 @@ alias path='echo -e ${PATH//:/\\n}'
 alias disp='echo $DISPLAY'
 
 if type cygpath > /dev/null 2>&1; then
-	alias winpwd='cygpath -w $(pwd)'
+	alias winpwd='cygpath -w "$PWD"'
 fi
 
 if type explorer.exe > /dev/null 2>&1; then
