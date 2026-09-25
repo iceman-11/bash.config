@@ -170,7 +170,6 @@ set +o nounset          # Error when using an undefined variable [-o]
 
 shopt -s cdspell        # Correct misspelling of directory name
 shopt -s checkhash      # Check the hash table before path search
-shopt -s dotglob        # Add files beginning with . in the pathname completion
 shopt -s checkwinsize   # Update LINES and COLUMNS after each command
 
 shopt -s mailwarn
