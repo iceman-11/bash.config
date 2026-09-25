@@ -41,14 +41,24 @@ mkdir -p "$sandbox/.config"
 cp -R "$REPO" "$sandbox/.config/bash"
 rm -rf "$sandbox/.config/bash/.git"
 
+# Only parses if extglob is already on while plugins are loaded
+mkdir -p "$sandbox/.config/bash/plugin/local"
+printf 'case x in @(x|y)) ;; esac
+' > "$sandbox/.config/bash/plugin/local/zz-test-extglob.bash"
+
+# PATH checks: a directory standing for the inherited PATH, a venv for the
+# nested shell, and the home bin directories
+mkdir -p "$sandbox/inherited" "$sandbox/venv" "$sandbox/.local/bin" "$sandbox/bin"
+
 # Minimal environment; keep what Git Bash needs to run Windows programs
-env_vars=(HOME="$sandbox" PATH="$PATH" TERM=xterm-256color USER="${USER:-ci}")
+env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH" TERM=xterm-256color USER="${USER:-ci}")
 for var in MSYSTEM SYSTEMROOT TMP TEMP; do
 	[[ -n ${!var:-} ]] && env_vars+=("$var=${!var}")
 done
 
 # Run once the configuration is loaded: run the prompt hook, check that the
-# plugins were loaded, then stop any agent the ssh-agent plugin started.
+# plugins were loaded and what the configuration sets, then stop any agent the
+# ssh-agent plugin started.
 # shellcheck disable=SC2016
 checks='
 	eval "$PROMPT_COMMAND"
@@ -56,6 +66,43 @@ checks='
 		[[ $(type -t "$fn") == function ]] || echo "MISSING function $fn" >&2
 	done
 	[[ -n $PS1 ]] || echo "MISSING PS1" >&2
+
+	# Home bin directories, then the inherited PATH in its order (a plugin
+	# such as Homebrew may put its own directories in front)
+	case $PATH in
+		"$HOME/.local/bin:$HOME/bin:$HOME/inherited:"* | \
+		*":$HOME/.local/bin:$HOME/bin:$HOME/inherited:"*) ;;
+		*) echo "PATH lacks ~/.local/bin:~/bin:<inherited> in this order: ${PATH:0:200}" >&2 ;;
+	esac
+
+	# A nested shell keeps the PATH it inherits unchanged (e.g. a venv first)
+	nested=$(PATH="$HOME/venv:$PATH" "$BASH" --rcfile "$HOME/.config/bash/bashrc" \
+		-ic "printf %s \"\$PATH\"" 2> /dev/null < /dev/null)
+	[[ $nested == "$HOME/venv:$PATH"* ]] ||
+		echo "PATH reordered in a nested shell: ${nested:0:200}" >&2
+
+	# System tools come from /usr/bin, not from a Windows directory
+	if [[ -x /usr/bin/find ]]; then
+		[[ $(type -P find) -ef /usr/bin/find ]] || echo "find resolves to $(type -P find)" >&2
+	fi
+
+	# Nothing the configuration should set or enable by itself
+	for var in DISPLAY LC_ALL; do
+		[[ -v $var ]] && echo "$var set by the configuration: ${!var}" >&2
+	done
+
+	# XAUTHORITY is exported, so that a process whose HOME differs (su, sudo)
+	# still finds the calling user'"'"'s cookie; a value already set is kept
+	[[ $(declare -p XAUTHORITY 2> /dev/null) == "declare -x XAUTHORITY=\"$HOME/.Xauthority\"" ]] ||
+		echo "XAUTHORITY not exported as ~/.Xauthority: $(declare -p XAUTHORITY 2>&1)" >&2
+	as_root=$(HOME=/nonexistent "$BASH" --norc -c "printf %s \"\$XAUTHORITY\"")
+	[[ $as_root == "$HOME/.Xauthority" ]] ||
+		echo "XAUTHORITY lost when HOME changes: $as_root" >&2
+	kept=$(XAUTHORITY=/run/user/1000/gdm/Xauthority "$BASH" --rcfile "$HOME/.config/bash/bashrc" \
+		-ic "printf %s \"\$XAUTHORITY\"" 2> /dev/null < /dev/null)
+	[[ $kept == /run/user/1000/gdm/Xauthority ]] ||
+		echo "XAUTHORITY already set was not kept: $kept" >&2
+	shopt -q dotglob && echo "dotglob is on" >&2
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
 	exit 0
 '
