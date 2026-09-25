@@ -10,7 +10,7 @@ __cleanup_history() {
 	[ -n "$HISTFILE" ] && [ -f "$HISTFILE" ] || return 0
 
 	local lockdir="${HISTFILE}.lock"
-	local tmpfile
+	local tmpfile size
 
 	# Remove stale lock older than 60 seconds
 	if [ -d "$lockdir" ]; then
@@ -20,6 +20,9 @@ __cleanup_history() {
 	# Try to acquire lock
 	mkdir "$lockdir" 2>/dev/null || return 0
 	trap 'rmdir "$lockdir" 2>/dev/null' EXIT
+
+	# Size before reading: what other shells append meanwhile is kept below
+	size=$(wc -c < "$HISTFILE")
 
 	# Deduplicate history by entry, in one process
 	tmpfile=$(mktemp "${HISTFILE}.XXXXXX")
@@ -39,14 +42,20 @@ __cleanup_history() {
 				if (stamp[i] != "") print stamp[i]
 				print text[i]
 			}
-		}' "$HISTFILE" > "$tmpfile"
+		}' "$HISTFILE" > "$tmpfile" || { rm -f "$tmpfile"; rmdir "$lockdir"; return 1; }
 
-	# Only replace if result is non-empty
-	if [ -s "$tmpfile" ]; then
-		mv "$tmpfile" "$HISTFILE"
-	else
-		rm -f "$tmpfile"
+	# Keep the lines other shells appended (history -a) during the clean-up
+	if (( $(wc -c < "$HISTFILE") > size )); then
+		tail -c +$(( size + 1 )) "$HISTFILE" >> "$tmpfile"
 	fi
+
+	# Only replace if the result is non-empty. Write into the existing file
+	# rather than moving the new one over it: a symbolic link (e.g. to a
+	# synced folder) and the file's permissions are kept.
+	if [ -s "$tmpfile" ]; then
+		cat "$tmpfile" > "$HISTFILE"
+	fi
+	rm -f "$tmpfile"
 
 	# Release lock
 	rmdir "$lockdir" 2>/dev/null
