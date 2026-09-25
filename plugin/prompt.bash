@@ -2,27 +2,6 @@
 # Shell prompt
 ################################################################################
 
-function __jobs_ps1 {
-	local job_count
-	# Get the actual number of jobs
-	job_count=$(jobs | wc -l)
-
-	# Only display if there are jobs
-	if [ "$job_count" -gt 0 ]; then
-		printf " !%s" "$job_count"
-	fi
-}
-
-function __virtual_env_ps1 {
-	# Check if we're in a virtual environment
-	if [ -n "$VIRTUAL_ENV" ]; then
-		# Extract the virtual environment name from the path
-		local virtual_env_name
-		virtual_env_name=$(basename "$VIRTUAL_ENV")
-		printf " (%s)" "$virtual_env_name"
-	fi
-}
-
 function __set_prompt {
 
 	local __style_username=""
@@ -36,8 +15,10 @@ function __set_prompt {
 	local __style_end=""
 	local __style_reset=""
 
-	# Jobs prompt
-	local __prompt_jobs='$(__jobs_ps1)'
+	# Jobs prompt: " !<count>", only when there are jobs, without a subshell.
+	# Bash replaces \j with the count before expanding variables, so the
+	# index "\j>0" is 1 when there are jobs (see __ps1_jobs below).
+	local __prompt_jobs='${__ps1_jobs[\j>0]}${__ps1_jobs[\j>0]:+\j}'
 
 	# Git Prompt
 	local __prompt_git
@@ -45,8 +26,8 @@ function __set_prompt {
 		__prompt_git='$(__git_ps1 " [%s]")'
 	fi
 
-	# Virtual environment prompt
-	local __prompt_virtual_env='$(__virtual_env_ps1)'
+	# Virtual environment prompt: " (<name>)", without a subshell
+	local __prompt_virtual_env='${VIRTUAL_ENV:+ (${VIRTUAL_ENV##*/})}'
 
 	# Check if stdout is a terminal...
 	if test -t 1; then
@@ -110,6 +91,8 @@ THEME="${XDG_CONFIG_HOME}/oh-my-posh/themes/iceman.omp.json"
 if type oh-my-posh > /dev/null 2>&1 && [ -r $THEME ]; then
 	eval "$(oh-my-posh init bash --config ${THEME})" 2> /dev/null
 else
+	# Used by the fallback prompt's job count: nothing without jobs
+	__ps1_jobs=("" " !")
 	__set_prompt
 fi
 
