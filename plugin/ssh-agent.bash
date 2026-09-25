@@ -72,7 +72,8 @@ __ssh_agent_owns() {
 
 # Take the lock directory $1 (mkdir is atomic, also on NFS and in Git Bash).
 # The holder writes its pid inside; a lock whose holder is gone is stale and
-# removed. Give up after about 5 seconds.
+# removed, as is a lock without a pid older than a minute (its holder died
+# between mkdir and writing the pid). Give up after about 5 seconds.
 __ssh_agent_lock() {
 	local lock=$1 deadline=$(( SECONDS + 5 )) owner
 
@@ -85,6 +86,12 @@ __ssh_agent_lock() {
 		owner=
 		{ read -r owner < "$lock/pid"; } 2> /dev/null
 		if [[ $owner =~ ^[0-9]+$ ]] && ! kill -0 "$owner" 2> /dev/null; then
+			rm -rf "$lock"
+			continue
+		fi
+
+		if [[ -z $owner && ! -e $lock/pid &&
+			-n $(find "$lock" -maxdepth 0 -mmin +1 2> /dev/null) ]]; then
 			rm -rf "$lock"
 			continue
 		fi
