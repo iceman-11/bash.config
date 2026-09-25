@@ -88,8 +88,8 @@ export VIRTUAL_ENV_DISABLE_PROMPT=1
 
 # Set theme
 THEME="${XDG_CONFIG_HOME}/oh-my-posh/themes/iceman.omp.json"
-if type oh-my-posh > /dev/null 2>&1 && [ -r $THEME ]; then
-	eval "$(oh-my-posh init bash --config ${THEME})" 2> /dev/null
+if type oh-my-posh > /dev/null 2>&1 && [ -r "$THEME" ]; then
+	eval "$(oh-my-posh init bash --config "$THEME")"
 else
 	# Used by the fallback prompt's job count: nothing without jobs
 	__ps1_jobs=("" " !")
@@ -134,6 +134,7 @@ fi
 export -n PS1 PROMPT_COMMAND
 
 # Clean-up
-unset __set_prompt
+unset -f __set_prompt
+unset THEME
 
 ################################################################################
