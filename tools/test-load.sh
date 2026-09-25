@@ -103,6 +103,15 @@ checks='
 	[[ $kept == /run/user/1000/gdm/Xauthority ]] ||
 		echo "XAUTHORITY already set was not kept: $kept" >&2
 	shopt -q dotglob && echo "dotglob is on" >&2
+
+	# History: timestamps are saved (HISTTIMEFORMAT set) but not shown (empty),
+	# so a multi-line command is still one entry after the per-prompt reload
+	[[ -v HISTTIMEFORMAT && -z $HISTTIMEFORMAT ]] ||
+		echo "HISTTIMEFORMAT is not set to an empty value: ${HISTTIMEFORMAT-<unset>}" >&2
+	history -s "$(printf "for i in 1 2\ndo\n  echo \$i\ndone")"
+	eval "$PROMPT_COMMAND"
+	(( $(fc -ln -1 | wc -l) == 4 )) ||
+		echo "multi-line history entry split by the per-prompt reload: $(fc -ln -1)" >&2
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
 	exit 0
 '
