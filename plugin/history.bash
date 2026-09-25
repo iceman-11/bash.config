@@ -71,4 +71,10 @@ export HISTFILESIZE=50000
 # Ignore duplicate lines
 export HISTCONTROL=ignoreboth:erasedups
 
+# Write a "#<timestamp>" line before each entry in HISTFILE. With lithist,
+# bash then reloads a multi-line command as one entry, not one per line. The
+# format is empty, so 'history' does not show the time. A value already set
+# is kept.
+export HISTTIMEFORMAT=${HISTTIMEFORMAT-}
+
 ################################################################################
