@@ -5,7 +5,7 @@ fi
 
 # Exit if already inside a tmux session
 if [[ -n "$TMUX" ]]; then
-    return
+	return
 fi
 
 function __display_tmux_sessions() {
