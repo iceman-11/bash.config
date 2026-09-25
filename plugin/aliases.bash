@@ -88,9 +88,11 @@ function man () {
 	command man "$@"
 }
 
+# Path of the program run for a command, even when the name is also an alias
+# or a function
 function where() {
 
-	which $1 2> /dev/null | head -1 | sed 's/^[^/]*//'
+	type -P "$1"
 }
 
 ################################################################################
