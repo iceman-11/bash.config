@@ -120,10 +120,22 @@ function prompt_command {
 	history -c  # Clear history
 	history -r  # Reload history from history file
 
-	# If running tmux and SSH_AUTH_SOCK is not a socket
-	if [ -n "$TMUX" ] && [ ! -S "$SSH_AUTH_SOCK" ]; then
-		# Refresh SSH_AUTH_SOCK
-		eval "$(tmux show-environment -s SSH_AUTH_SOCK 2> /dev/null)"
+	# In tmux, a pane keeps the SSH_AUTH_SOCK it was started with; after a
+	# reattach from a new 'ssh -A' session that socket is gone. Take the one
+	# tmux now has, if it is a socket (no eval: tmux may answer "unset ...").
+	# While none is valid, ask tmux at most every 10 seconds.
+	if [[ -n $TMUX && ! -S ${SSH_AUTH_SOCK:-} ]] &&
+		(( SECONDS - ${__prompt_tmux_asked:--10} >= 10 )); then
+		local sock
+		sock=$(tmux show-environment SSH_AUTH_SOCK 2> /dev/null)
+		sock=${sock#SSH_AUTH_SOCK=}
+
+		if [[ -S $sock ]]; then
+			export SSH_AUTH_SOCK=$sock
+			unset __prompt_tmux_asked
+		else
+			__prompt_tmux_asked=$SECONDS
+		fi
 	fi
 }
 
