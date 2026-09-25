@@ -8,8 +8,8 @@
 # Aliases
 ################################################################################
 
-alias which='type -all'
-alias path='echo -e ${PATH//:/\\n}'
+alias which='type -a'
+alias path='tr : "\n" <<< "$PATH"'
 alias disp='echo $DISPLAY'
 
 if type cygpath > /dev/null 2>&1; then
