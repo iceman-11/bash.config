@@ -111,7 +111,6 @@ if type oh-my-posh > /dev/null 2>&1 && [ -r $THEME ]; then
 	eval "$(oh-my-posh init bash --config ${THEME})" 2> /dev/null
 else
 	__set_prompt
-	export PS1
 fi
 
 # Configure PROMPT_COMMAND
@@ -145,7 +144,11 @@ if [[ "$PROMPT_COMMAND" != *"prompt_command"* ]]; then
 	PROMPT_COMMAND+="prompt_command"
 fi
 
-export PROMPT_COMMAND
+# PS1 and PROMPT_COMMAND are not exported: every bash reading this
+# configuration sets its own, and other shells (sh, bash --norc) cannot use
+# them ("prompt_command: command not found"). Undo an export inherited from
+# an older shell.
+export -n PS1 PROMPT_COMMAND
 
 # Clean-up
 unset __set_prompt
