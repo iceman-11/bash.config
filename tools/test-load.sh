@@ -50,6 +50,10 @@ printf 'case x in @(x|y)) ;; esac
 # nested shell, and the home bin directories
 mkdir -p "$sandbox/inherited" "$sandbox/venv" "$sandbox/.local/bin" "$sandbox/bin"
 
+# A stand-in 'man' (Git Bash has none), so that the man wrapper is defined
+printf '#!/bin/sh\nexit 0\n' > "$sandbox/inherited/man"
+chmod +x "$sandbox/inherited/man"
+
 # Minimal environment; keep what Git Bash needs to run Windows programs
 env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH" TERM=xterm-256color USER="${USER:-ci}")
 for var in MSYSTEM SYSTEMROOT TMP TEMP; do
@@ -112,6 +116,22 @@ checks='
 	eval "$PROMPT_COMMAND"
 	(( $(fc -ln -1 | wc -l) == 4 )) ||
 		echo "multi-line history entry split by the per-prompt reload: $(fc -ln -1)" >&2
+
+	# aliases.bash: where, path, winpwd, xtitle, man
+	[[ $(where ls) == /* ]] || echo "where ls: \"$(where ls)\" is not a path" >&2
+	[[ $( (PATH="$PATH:/x  y"; path) | tail -n 1) == "/x  y" ]] ||
+		echo "path changes a PATH entry with two spaces: $( (PATH="$PATH:/x  y"; path) | tail -n 1)" >&2
+	if type cygpath > /dev/null 2>&1; then
+		mkdir -p "$HOME/dir with space" && cd "$HOME/dir with space" &&
+			[[ $(winpwd) == *"dir with space" ]] ||
+			echo "winpwd in a directory with a space: $(winpwd)" >&2
+		cd "$HOME"
+	fi
+	[[ $(TERM=tmux-256color xtitle "a\\tb") == $(printf "\033]0;%s\007" "a\\tb") ]] ||
+		echo "xtitle: no title for TERM=tmux-256color or backslash interpreted" >&2
+	[[ $(TERM=xterm man 3 printf) == $(printf "\033]0;The printf manual\007") ]] ||
+		echo "man 3 printf: wrong window title" >&2
+	[[ -z $(TERM=xterm man) ]] || echo "man without a page sets a window title" >&2
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
 	exit 0
 '
