@@ -25,8 +25,11 @@ BASH_HOME="${XDG_CONFIG_HOME}/bash"
 # Setup DISPLAY ################################################################
 
 function __set_display() {
-	if [ $NO_TTY = "0" ] && [ ! "$DISPLAY" ]; then
-		export DISPLAY=$(echo -n `who -m | awk '{print $6}' | sed 's/^(//; s/)$//'`:0.0)
+	local host
+
+	if [ "$NO_TTY" = "0" ] && [ ! "$DISPLAY" ]; then
+		host=$(who -m | awk '{print $6}' | sed 's/^(//; s/)$//')
+		export DISPLAY="${host}:0.0"
 	fi
 }
 
@@ -54,7 +57,7 @@ function __get_locale {
 	return $match_result
 }
 
-for locale_preference in ${LOCALE_PREFERENCES[@]}; do
+for locale_preference in "${LOCALE_PREFERENCES[@]}"; do
 	locale=$(__get_locale $locale_preference)
 	result=$?
 
@@ -74,7 +77,8 @@ done
 function __merge_paths {
 
 	# Process function's arguments
-	local args=$(echo $* | command -p awk '{if (! a[$1]++) print $1}' FS=\\n RS=:)
+	local args
+	args=$(echo "$*" | command -p awk '{if (! a[$1]++) print $1}' FS=\\n RS=:)
 
 	local dir
 	local path
@@ -129,8 +133,10 @@ function __source_plugins {
 		if [ -r "$script" ]; then
 			local IFS=$oifs
 			if [ "${-#*i}" != "$-" ]; then
+				# shellcheck source=/dev/null
 				. "$script"
 			else
+				# shellcheck source=/dev/null
 				. "$script" > /dev/null 2>&1
 			fi
 		fi

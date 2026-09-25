@@ -189,6 +189,7 @@ ssh_agent_reset() {
 	fi
 
 	# Re-run this file to start a fresh agent
+	# shellcheck source=/dev/null
 	. "${BASH_SOURCE[0]}"
 }
 

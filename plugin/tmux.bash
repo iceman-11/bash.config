@@ -9,7 +9,8 @@ if [[ -n "$TMUX" ]]; then
 fi
 
 function __display_tmux_sessions() {
-	local sessions=$(tmux ls -F '#{session_name}:#{session_windows}' 2>/dev/null)
+	local sessions
+	sessions=$(tmux ls -F '#{session_name}:#{session_windows}' 2>/dev/null)
 
 	if [[ -n "$sessions" ]]; then
 		echo -e "\033[0;96m◉ tmux\033[0m"

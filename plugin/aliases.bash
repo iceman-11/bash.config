@@ -23,7 +23,7 @@ fi
 # The 'ls' family ##############################################################
 
 if [ -x /usr/bin/dircolors ]; then
-	test -r "${HOME}/.dircolors" && eval $(dircolors -b "${HOME}/.dircolors") || eval $(dircolors -b)
+	test -r "${HOME}/.dircolors" && eval "$(dircolors -b "${HOME}/.dircolors")" || eval "$(dircolors -b)"
 fi
 
 if ls --color=auto -d > /dev/null 2>&1; then
@@ -56,7 +56,7 @@ fi
 # Find duplicate files
 
 function dups() {
-	find $* -type d -name .git -prune -false \
+	find "$@" -type d -name .git -prune -false \
 		-o -type f ! -empty -exec sha1sum {} + | \
 		sort -k1,1 | uniq -w40 -d --all-repeated=separate
 }
@@ -83,7 +83,7 @@ function xtitle () {
 
 function man () {
 
-	xtitle The $(basename ${@:$#} | tr -d .[:digit:]) manual
+	xtitle "The $(basename "${@:$#}" | tr -d '.[:digit:]') manual"
 	command man "$@"
 }
 

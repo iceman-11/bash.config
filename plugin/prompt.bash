@@ -17,7 +17,8 @@ function __virtual_env_ps1 {
 	# Check if we're in a virtual environment
 	if [ -n "$VIRTUAL_ENV" ]; then
 		# Extract the virtual environment name from the path
-		local virtual_env_name=$(basename "$VIRTUAL_ENV")
+		local virtual_env_name
+		virtual_env_name=$(basename "$VIRTUAL_ENV")
 		printf " (%s)" "$virtual_env_name"
 	fi
 }
@@ -49,7 +50,8 @@ function __set_prompt {
 
 	# Check if stdout is a terminal...
 	if test -t 1; then
-		local __colors=$(tput colors)
+		local __colors
+		__colors=$(tput colors)
 
 		# See if it supports colors...
 		if test -n "${__colors}" && test ${__colors} -ge 8; then
@@ -96,7 +98,7 @@ function __set_prompt {
 	PS1+=${__style_jobs}${__prompt_jobs}${__style_reset}
 	PS1+=$'\n'
 	PS1+=${__style_time}"\A "${__style_reset}
-	PS1+=${__style_end}"\\$"${__style_reset}" "
+	PS1+=${__style_end}'\$'${__style_reset}' '
 
 }
 
