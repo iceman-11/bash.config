@@ -2,7 +2,10 @@
 # History
 ################################################################################
 
-# Clean-up history file (deduplicate)
+# Clean-up history file: remove duplicate entries, keeping the newest copy.
+# An entry is a "#<timestamp>" line and the command lines that follow it
+# (several for a multi-line command); lines without a timestamp, written
+# before HISTTIMEFORMAT was set, are one entry each.
 __cleanup_history() {
 	[ -n "$HISTFILE" ] && [ -f "$HISTFILE" ] || return 0
 
@@ -18,10 +21,25 @@ __cleanup_history() {
 	mkdir "$lockdir" 2>/dev/null || return 0
 	trap 'rmdir "$lockdir" 2>/dev/null' EXIT
 
-	# Deduplicate history, preserving timestamps
+	# Deduplicate history by entry, in one process
 	tmpfile=$(mktemp "${HISTFILE}.XXXXXX")
-	nl "$HISTFILE" | sort -rn | sort -uk2 | sort -nk1 | cut -f2- | \
-		awk '/^#[0-9]+$/ { ts=$0; next } { if (ts) print ts; ts=""; if (NF) print }' > "$tmpfile"
+	awk '
+		# Store the entry being read; the last copy of each text wins
+		function flush() {
+			if (n) { text[++count] = cmd; stamp[count] = ts; last[cmd] = count }
+			n = 0; cmd = ""; ts = ""
+		}
+		/^#[0-9]+$/ { flush(); ts = $0; next }
+		ts == "" { flush(); if (NF) { cmd = $0; n = 1; flush() }; next }
+		{ cmd = n++ ? cmd "\n" $0 : $0 }
+		END {
+			flush()
+			for (i = 1; i <= count; i++) {
+				if (last[text[i]] != i) continue
+				if (stamp[i] != "") print stamp[i]
+				print text[i]
+			}
+		}' "$HISTFILE" > "$tmpfile"
 
 	# Only replace if result is non-empty
 	if [ -s "$tmpfile" ]; then
