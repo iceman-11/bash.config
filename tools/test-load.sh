@@ -87,9 +87,21 @@ checks='
 	fi
 
 	# Nothing the configuration should set or enable by itself
-	for var in DISPLAY XAUTHORITY LC_ALL; do
+	for var in DISPLAY LC_ALL; do
 		[[ -v $var ]] && echo "$var set by the configuration: ${!var}" >&2
 	done
+
+	# XAUTHORITY is exported, so that a process whose HOME differs (su, sudo)
+	# still finds the calling user'"'"'s cookie; a value already set is kept
+	[[ $(declare -p XAUTHORITY 2> /dev/null) == "declare -x XAUTHORITY=\"$HOME/.Xauthority\"" ]] ||
+		echo "XAUTHORITY not exported as ~/.Xauthority: $(declare -p XAUTHORITY 2>&1)" >&2
+	as_root=$(HOME=/nonexistent "$BASH" --norc -c "printf %s \"\$XAUTHORITY\"")
+	[[ $as_root == "$HOME/.Xauthority" ]] ||
+		echo "XAUTHORITY lost when HOME changes: $as_root" >&2
+	kept=$(XAUTHORITY=/run/user/1000/gdm/Xauthority "$BASH" --rcfile "$HOME/.config/bash/bashrc" \
+		-ic "printf %s \"\$XAUTHORITY\"" 2> /dev/null < /dev/null)
+	[[ $kept == /run/user/1000/gdm/Xauthority ]] ||
+		echo "XAUTHORITY already set was not kept: $kept" >&2
 	shopt -q dotglob && echo "dotglob is on" >&2
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
 	exit 0
