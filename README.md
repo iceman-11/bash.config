@@ -65,19 +65,19 @@ Put anything specific to one machine (work aliases, paths, secrets) in a
 
 | Plugin            | What it does                                        |
 | ----------------- | --------------------------------------------------- |
-| `homebrew.bash`   | Loads Linuxbrew into PATH                           |
+| `homebrew.bash`   | Loads Homebrew (Linux or macOS) into PATH           |
 | `aliases.bash`    | `ls`/`grep` colours and aliases, helper functions   |
 | `cargo.bash`      | Loads `~/.cargo/env`                                |
 | `fzf.bash`        | fzf key bindings; uses `fd` and `tree` if present   |
-| `git.bash`        | `glog` alias                                        |
+| `git.bash`        | `glog` alias, `__git_ps1` for the fallback prompt   |
 | `history.bash`    | Large shared history, de-duplicated once a day      |
 | `prompt.bash`     | oh-my-posh prompt, or a built-in fallback prompt    |
 | `ssh-agent.bash`  | One ssh-agent per host, shared by all shells        |
 | `tmux.bash`       | Lists running tmux sessions when a shell starts     |
 | `uv.bash`         | uv/uvx completion, `uvreq` alias                    |
-| `vim.bash`        | `EDITOR` and `vi` aliases for nvim, vimx or vim     |
-| `wsl.bash`        | `cdp` alias to the Windows projects folder (WSL)    |
-| `zoxide.bash`     | zoxide (`z`); `cd` is an alias of `z`               |
+| `vim.bash`        | `EDITOR`, `VISUAL`, `vi` aliases (nvim, vimx, vim)  |
+| `windows.bash`    | `cdp` to Windows projects folder (Git Bash, WSL)    |
+| `zoxide.bash`     | zoxide: `cd` jumps to frequent folders, `z` = `cd`  |
 
 ### Commands
 
@@ -89,6 +89,7 @@ Put anything specific to one machine (work aliases, paths, secrets) in a
 | `xtitle TEXT`             | Set the terminal window title               |
 | `path`                    | Print PATH, one directory per line          |
 | `glog`                    | Git history graph of all branches           |
+| `cdp`                     | cd to the Windows projects folder           |
 | `ssh_agent_reset [--all]` | Restart the ssh-agent (`--all`: kill all)   |
 | `bash_cache_clear`        | Empty the cache described below             |
 
@@ -118,9 +119,9 @@ fi
 ```
 
 The output is stored in `~/.cache/bash/NAME.bash` and generated again when
-the tool is updated or replaced, or after a week. Run `bash_cache_clear`
-to regenerate everything at the next start, for example after changing a
-tool's settings.
+the tool is updated or replaced, when the command's arguments change, or
+after a week. Run `bash_cache_clear` to regenerate everything at the next
+start, for example after changing a tool's settings.
 
 Writing a plugin
 ----------------

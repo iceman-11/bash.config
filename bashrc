@@ -157,7 +157,7 @@ BASH_CACHE="${XDG_CACHE_HOME:-${HOME}/.cache}/bash"
 # replaced or updated, or after a week. The caller sources the file itself:
 # sourcing it from inside this function would make its 'declare's local.
 function __cache_output {
-	local name=$1 bin stamp cached_bin now
+	local name=$1 bin stamp cached_bin cached_cmd now
 	shift
 
 	__cache_file="${BASH_CACHE}/${name}.bash"
@@ -166,16 +166,17 @@ function __cache_output {
 	bin=${BASH_CMDS[$1]}
 	printf -v now '%(%s)T' -1
 
-	# First line of the cache: "# <creation time> <path of CMD>"
-	{ read -r _ stamp cached_bin < "$__cache_file"; } 2> /dev/null
+	# Header of the cache: "# <creation time> <path of CMD>", then
+	# "# <command line>" (a changed argument must regenerate it)
+	{ { read -r _ stamp cached_bin; read -r cached_cmd; } < "$__cache_file"; } 2> /dev/null
 
-	if [[ $cached_bin == "$bin" && $stamp =~ ^[0-9]+$ ]] &&
+	if [[ $cached_bin == "$bin" && $cached_cmd == "# $*" && $stamp =~ ^[0-9]+$ ]] &&
 		(( now - stamp < 7 * 24 * 3600 )) && [[ ! $bin -nt $__cache_file ]]; then
 		return 0
 	fi
 
 	mkdir -p "$BASH_CACHE" || return 1
-	{ echo "# $now $bin"; "$@"; } > "${__cache_file}.$$" &&
+	{ echo "# $now $bin"; echo "# $*"; "$@"; } > "${__cache_file}.$$" &&
 		mv -f "${__cache_file}.$$" "$__cache_file" ||
 		{ rm -f "${__cache_file}.$$"; return 1; }
 }
