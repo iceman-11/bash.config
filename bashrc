@@ -8,9 +8,9 @@
 ################################################################################
 
 # Bail out early for non-interactive shells (e.g. login shells sourced by a
-# display manager during graphical session start-up). Without this, DISPLAY/
-# XAUTHORITY overrides and plugin side effects below can run in that context
-# and hang or break the session before the desktop ever appears.
+# display manager during graphical session start-up). Without this, plugin
+# side effects below (ssh-agent, tmux, ...) can run in that context and hang
+# or break the session before the desktop ever appears.
 case $- in
 	*i*) ;;
 	  *) return ;;
@@ -110,7 +110,7 @@ export PATH
 set -o notify           # Report exit status of bg jobs immediately [-o]
 set +o noclobber        # Allow to overwrite file with redirection [+o]
 set +o ignoreeof        # Allow to exit with Ctrl-D [+o]
-set +o nounset          # Error when using an undefined variable [-o]
+set +o nounset          # Allow undefined variables (-o: error on them) [+o]
 
 shopt -s cdspell        # Correct misspelling of directory name
 shopt -s checkhash      # Check the hash table before path search
