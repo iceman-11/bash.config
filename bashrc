@@ -16,9 +16,6 @@ case $- in
 	  *) return ;;
 esac
 
-NO_TTY=`tty > /dev/null 2>&1; echo $?`
-OS=$(uname)
-
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
 BASH_HOME="${XDG_CONFIG_HOME}/bash"
 
@@ -27,7 +24,7 @@ BASH_HOME="${XDG_CONFIG_HOME}/bash"
 function __set_display() {
 	local host
 
-	if [ "$NO_TTY" = "0" ] && [ ! "$DISPLAY" ]; then
+	if [[ -t 0 ]] && [ ! "$DISPLAY" ]; then
 		host=$(who -m | awk '{print $6}' | sed 's/^(//; s/)$//')
 		export DISPLAY="${host}:0.0"
 	fi
@@ -45,28 +42,29 @@ export XAUTHORITY=${XAUTHORITY:=${HOME}/.Xauthority}
 # Set UTF-8 locale
 ################################################################################
 
-LOCALE_PREFERENCES=("en_US.utf8" "en_GB.utf8" "C.utf8")
-ALL_LOCALES=$(locale -a 2> /dev/null)
+function __set_locale {
+	local preference locale
+	local -a locales
 
-function __get_locale {
-	local matching_locales match_result
-	matching_locales=$(printf '%s\n' $ALL_LOCALES | grep -E "\<($1)\>")
-	match_result=$?
+	# Already set up by a parent shell: nothing to do
+	case ${LC_ALL,,} in
+		*.utf8 | *.utf-8) return ;;
+	esac
 
-	printf '%s\n' $matching_locales | head -1
-	return $match_result
+	mapfile -t locales < <(locale -a 2> /dev/null)
+
+	for preference in en_US.utf8 en_GB.utf8 C.utf8; do
+		for locale in "${locales[@]}"; do
+			if [[ $locale == "$preference" ]]; then
+				export LANG=$locale
+				export LC_ALL=$locale
+				return
+			fi
+		done
+	done
 }
 
-for locale_preference in "${LOCALE_PREFERENCES[@]}"; do
-	locale=$(__get_locale $locale_preference)
-	result=$?
-
-	if [ $result -eq 0 ]; then
-			export LANG=$locale
-			export LC_ALL=$locale
-			break
-	fi
-done
+__set_locale
 
 ################################################################################
 #
@@ -74,47 +72,40 @@ done
 #
 ################################################################################
 
+# Set PATH to the existing directories of $1, keeping the first occurrence of
+# each (no subshell: a fork is slow on Windows)
 function __merge_paths {
+	local dir path=
+	local -a dirs
+	local -A seen=()
 
-	# Process function's arguments
-	local args
-	args=$(echo "$*" | command -p awk '{if (! a[$1]++) print $1}' FS=\\n RS=:)
+	IFS=: read -ra dirs <<< "$1"
 
-	local dir
-	local path
-
-	local IFS=$'\n'
-
-	for dir in ${args}; do
-
-		# Skip non-existent directories
-		if [ -z $dir ] || ! [ -d "$dir" ]; then
+	for dir in "${dirs[@]}"; do
+		# Skip empty entries, duplicates and non-existent directories
+		if [[ -z $dir || -n ${seen[$dir]:-} || ! -d $dir ]]; then
 			continue
 		fi
 
-		# Add directory to the path variable
-		if [ -z "${path}" ]; then
-			path="${dir}"
-		else
-			path+=":${dir}"
-		fi
+		seen[$dir]=1
+		path+=${path:+:}$dir
 	done
 
-	echo $path
+	PATH=$path
 }
 
 ### Default PATH
 PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${PATH}
 
 ### OS Specific PATH
-case $OS in
-	'SunOS' )
+case $OSTYPE in
+	solaris* )
 		PATH+=:/opt/sfw/bin:/usr/sfw/bin:/usr/sfw/sbin
 	;;
 esac
 
 ### Add home directory, clean-up and export PATH
-PATH=$(__merge_paths ${PATH}:${HOME}/.local/bin:${HOME}/bin)
+__merge_paths "${PATH}:${HOME}/.local/bin:${HOME}/bin"
 export PATH
 
 ################################################################################
@@ -123,29 +114,55 @@ export PATH
 #
 ################################################################################
 
-PLUGINS=$(ls -1U ${BASH_HOME}/{init,init/local,plugin,plugin/local,post,post/local}/*.bash 2> /dev/null)
+BASH_CACHE="${XDG_CACHE_HOME:-${HOME}/.cache}/bash"
 
-function __source_plugins {
-	local oifs=$IFS
-	local IFS=$'\n'
+# Cache the output of a slow command that generates shell code, e.g.
+# "fzf --bash". Usage from a plugin:
+#
+#   __cache_output NAME CMD [ARGS...] && . "$__cache_file"
+#
+# The output is stored in $BASH_CACHE/NAME.bash and regenerated when CMD is
+# replaced or updated, or after a week. The caller sources the file itself:
+# sourcing it from inside this function would make its 'declare's local.
+function __cache_output {
+	local name=$1 bin stamp cached_bin now
+	shift
 
-	for script in $PLUGINS; do
-		if [ -r "$script" ]; then
-			local IFS=$oifs
-			if [ "${-#*i}" != "$-" ]; then
-				# shellcheck source=/dev/null
-				. "$script"
-			else
-				# shellcheck source=/dev/null
-				. "$script" > /dev/null 2>&1
-			fi
-		fi
-	done
+	__cache_file="${BASH_CACHE}/${name}.bash"
+	# Resolve CMD through the hash table: no subshell
+	hash "$1" 2> /dev/null || return 1
+	bin=${BASH_CMDS[$1]}
+	printf -v now '%(%s)T' -1
 
-	return 0
+	# First line of the cache: "# <creation time> <path of CMD>"
+	{ read -r _ stamp cached_bin < "$__cache_file"; } 2> /dev/null
+
+	if [[ $cached_bin == "$bin" && $stamp =~ ^[0-9]+$ ]] &&
+		(( now - stamp < 7 * 24 * 3600 )) && [[ ! $bin -nt $__cache_file ]]; then
+		return 0
+	fi
+
+	mkdir -p "$BASH_CACHE" || return 1
+	{ echo "# $now $bin"; "$@"; } > "${__cache_file}.$$" &&
+		mv -f "${__cache_file}.$$" "$__cache_file" ||
+		{ rm -f "${__cache_file}.$$"; return 1; }
 }
 
-__source_plugins
+# Clear the cache used by __cache_output (e.g. after changing a tool's setup)
+function bash_cache_clear {
+	rm -f "${BASH_CACHE}"/*.bash
+}
+
+# Plugins are sourced at the top level (not from a function), so that a
+# 'declare' in a plugin creates a global variable
+for __plugin in "${BASH_HOME}"/{init,init/local,plugin,plugin/local,post,post/local}/*.bash; do
+	if [[ -r $__plugin ]]; then
+		# shellcheck source=/dev/null
+		. "$__plugin"
+	fi
+done
+
+unset __plugin __cache_file
 
 ################################################################################
 #
@@ -174,9 +191,9 @@ shopt -s no_empty_cmd_completion
 # Clean-up functions
 ################################################################################
 
-unset __get_locale
-unset __merge_paths
-unset __set_display
-unset __source_plugins
+unset -f __set_locale
+unset -f __merge_paths
+unset -f __set_display
+unset -f __cache_output
 
 ################################################################################

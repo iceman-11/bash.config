@@ -9,8 +9,9 @@ fi
 
 # Setup fzf
 # ---------
-if type fzf > /dev/null 2>&1; then
-	eval "$(fzf --bash)"
+if __cache_output fzf fzf --bash; then
+	# shellcheck source=/dev/null disable=SC2154 # set by __cache_output
+	. "$__cache_file"
 fi
 
 # Use fd with fzf

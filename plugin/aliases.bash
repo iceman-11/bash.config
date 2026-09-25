@@ -23,7 +23,13 @@ fi
 # The 'ls' family ##############################################################
 
 if [ -x /usr/bin/dircolors ]; then
-	test -r "${HOME}/.dircolors" && eval "$(dircolors -b "${HOME}/.dircolors")" || eval "$(dircolors -b)"
+	if [ -r "${HOME}/.dircolors" ]; then
+		eval "$(dircolors -b "${HOME}/.dircolors")"
+	elif __cache_output dircolors dircolors -b; then
+		# The default colours only change with dircolors itself: cached
+		# shellcheck source=/dev/null disable=SC2154 # set by __cache_output
+		. "$__cache_file"
+	fi
 fi
 
 if ls --color=auto -d > /dev/null 2>&1; then
@@ -37,15 +43,10 @@ alias lt='ls -ltr'          # Sort by date
 
 # The 'grep' family ############################################################
 
-if (echo a | grep --color=auto a) > /dev/null 2>&1; then
+# One probe (no subshell): every grep supporting --color also has -E and -F
+if grep --color=auto -q a <<< a 2> /dev/null; then
 	alias grep='grep --color=auto'
-fi
-
-if (echo a | grep -F --color=auto a) > /dev/null 2>&1; then
 	alias fgrep='grep -F --color=auto'
-fi
-
-if (echo a | grep -E --color=auto a) > /dev/null 2>&1; then
 	alias egrep='grep -E --color=auto'
 fi
 

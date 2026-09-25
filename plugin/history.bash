@@ -35,9 +35,19 @@ __cleanup_history() {
 	trap - EXIT
 }
 
-# Run cleanup on interactive shell startup
-if [ "${-#*i}" != "$-" ]; then
-	__cleanup_history
+# Run the clean-up at most once a day: it starts several processes, which is
+# slow on Git Bash. The time of the last run is kept next to the history file.
+if [[ -n $HISTFILE ]]; then
+	__history_stamp="${HISTFILE}.cleaned"
+	__history_last=
+	{ read -r __history_last < "$__history_stamp"; } 2> /dev/null
+	printf -v __history_now '%(%s)T' -1
+
+	if [[ ! $__history_last =~ ^[0-9]+$ ]] || (( __history_now - __history_last >= 24 * 3600 )); then
+		__cleanup_history && echo "$__history_now" > "$__history_stamp"
+	fi
+
+	unset __history_stamp __history_last __history_now
 fi
 
 # Try to save multiple lines cmd to one history entry
