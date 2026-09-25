@@ -1,0 +1,2 @@
+# The files have no shebang: they are all sourced by bash
+shell=bash

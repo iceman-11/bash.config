@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    env:
+      SHELLCHECK_VERSION: v0.11.0
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install ShellCheck
+        run: |
+          url=https://github.com/koalaman/shellcheck/releases/download
+          curl -fsSL "$url/$SHELLCHECK_VERSION/shellcheck-$SHELLCHECK_VERSION.linux.x86_64.tar.xz" | tar -xJ
+          sudo install "shellcheck-$SHELLCHECK_VERSION/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
+
+      - name: Run ShellCheck
+        run: shellcheck --severity=warning bashrc init/*.bash plugin/*.bash tools/*.sh
+
+  load-test:
+    name: Load test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+          - name: Git Bash
+            os: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - run: tools/test-load.sh
+      - run: tools/test-history.sh
+      - run: tools/test-cache.sh
+
+  minimum-bash:
+    name: Load test (bash 4.4)
+    runs-on: ubuntu-latest
+    container: bash:4.4
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install GNU tools
+        run: apk add --no-cache coreutils findutils grep sed gawk ncurses procps util-linux openssh-client git
+
+      - uses: actions/checkout@v5
+      - run: tools/test-load.sh
+      - run: tools/test-history.sh
+      - run: tools/test-cache.sh

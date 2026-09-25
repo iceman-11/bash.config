@@ -1,0 +1,2 @@
+# Shell files must keep LF endings, including on Windows checkouts
+* text=auto eol=lf

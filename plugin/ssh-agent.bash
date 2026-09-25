@@ -36,16 +36,24 @@ fi
 
 # True if an agent answers on $SSH_AUTH_SOCK (ssh-add exit code 2: unreachable)
 __ssh_agent_reachable() {
+	# Without a socket there is nothing to ask (saves starting ssh-add)
+	[[ -n ${SSH_AUTH_SOCK:-} ]] || return 1
+
 	ssh-add -l > /dev/null 2>&1
 	[[ $? -ne 2 ]]
 }
 
-# Print the command line of process $1
+# Set __ssh_agent_args to the command line of process $1 (read without a
+# subshell where /proc exists: starting processes is slow on Git Bash)
 __ssh_agent_cmdline() {
+	local IFS=' '
+	local -a args
+
 	if [[ -r /proc/$1/cmdline ]]; then
-		tr '\0' ' ' < "/proc/$1/cmdline"
+		mapfile -d '' -t args < "/proc/$1/cmdline"
+		__ssh_agent_args="${args[*]}"
 	else
-		ps -p "$1" -o args= 2> /dev/null
+		__ssh_agent_args=$(ps -p "$1" -o args= 2> /dev/null)
 	fi
 }
 
@@ -58,12 +66,14 @@ __ssh_agent_match() {
 # True if process $1 is the ssh-agent listening on socket $2
 __ssh_agent_owns() {
 	[[ $1 =~ ^[0-9]+$ ]] || return 1
-	__ssh_agent_match "$(__ssh_agent_cmdline "$1")" "$2"
+	__ssh_agent_cmdline "$1"
+	__ssh_agent_match "$__ssh_agent_args" "$2"
 }
 
 # Take the lock directory $1 (mkdir is atomic, also on NFS and in Git Bash).
 # The holder writes its pid inside; a lock whose holder is gone is stale and
-# removed. Give up after about 5 seconds.
+# removed, as is a lock without a pid older than a minute (its holder died
+# between mkdir and writing the pid). Give up after about 5 seconds.
 __ssh_agent_lock() {
 	local lock=$1 deadline=$(( SECONDS + 5 )) owner
 
@@ -80,14 +90,32 @@ __ssh_agent_lock() {
 			continue
 		fi
 
+		if [[ -z $owner && ! -e $lock/pid &&
+			-n $(find "$lock" -maxdepth 0 -mmin +1 2> /dev/null) ]]; then
+			rm -rf "$lock"
+			continue
+		fi
+
 		sleep 0.1
 	done
 
 	return 1
 }
 
+# Set dir, sock, pidfile and lock for this host. The callers declare these
+# variables local: with bash's dynamic scoping, this sets the caller's.
+__ssh_agent_paths() {
+	local host=${HOSTNAME,,}
+
+	host=${host%%.*}
+	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
+	sock=$dir/$host.sock
+	pidfile=$dir/$host.pid
+	lock=$dir/$host.lock
+}
+
 __ssh_agent_init() {
-	local host dir sock pidfile lock pid output
+	local dir sock pidfile lock pid output
 
 	# Reuse any agent that already answers (forwarded, desktop, systemd, ...)
 	if __ssh_agent_reachable; then
@@ -99,14 +127,11 @@ __ssh_agent_init() {
 		return
 	fi
 
-	host=$(uname -n | tr '[:upper:]' '[:lower:]')
-	host=${host%%.*}
-	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
-	sock=$dir/$host.sock
-	pidfile=$dir/$host.pid
-	lock=$dir/$host.lock
+	__ssh_agent_paths
 
-	mkdir -p "$dir" && chmod 700 "$dir" || return 1
+	if [[ ! -d $dir ]]; then
+		mkdir -p "$dir" && chmod 700 "$dir" || return 1
+	fi
 
 	export SSH_AUTH_SOCK=$sock
 
@@ -122,7 +147,8 @@ __ssh_agent_init() {
 		if ! __ssh_agent_reachable; then
 
 			# Kill our previous agent if it is still running without its socket
-			pid=$(cat "$pidfile" 2> /dev/null)
+			pid=
+			{ read -r pid < "$pidfile"; } 2> /dev/null
 			if __ssh_agent_owns "$pid" "$sock"; then
 				kill "$pid" 2> /dev/null
 			fi
@@ -138,16 +164,17 @@ __ssh_agent_init() {
 		fi
 
 		rm -rf "$lock"
-	fi
 
-	# Do not leave SSH_AUTH_SOCK pointing at a socket nobody listens on
-	if ! __ssh_agent_reachable; then
-		unset SSH_AUTH_SOCK SSH_AGENT_PID
-		return 1
+		# Do not leave SSH_AUTH_SOCK pointing at a socket nobody listens on
+		if ! __ssh_agent_reachable; then
+			unset SSH_AUTH_SOCK SSH_AGENT_PID
+			return 1
+		fi
 	fi
 
 	# Export SSH_AGENT_PID so that 'ssh-agent -k' works
-	pid=$(cat "$pidfile" 2> /dev/null)
+	pid=
+	{ read -r pid < "$pidfile"; } 2> /dev/null
 	if __ssh_agent_owns "$pid" "$sock"; then
 		export SSH_AGENT_PID=$pid
 	else
@@ -156,14 +183,11 @@ __ssh_agent_init() {
 }
 
 ssh_agent_reset() {
-	local all=0 host dir sock proc pid args
+	local all=0 dir sock pidfile lock proc pid args
 
 	[[ ${1:-} == --all ]] && all=1
 
-	host=$(uname -n | tr '[:upper:]' '[:lower:]')
-	host=${host%%.*}
-	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
-	sock=$dir/$host.sock
+	__ssh_agent_paths
 
 	# List "pid args" of all processes
 	{
@@ -182,13 +206,14 @@ ssh_agent_reset() {
 		fi
 	done
 
-	rm -f "$sock" "$dir/$host.pid"
+	rm -f "$sock" "$pidfile"
 
 	if (( all )) || [[ ${SSH_AUTH_SOCK:-} == "$sock" ]]; then
 		unset SSH_AUTH_SOCK SSH_AGENT_PID
 	fi
 
 	# Re-run this file to start a fresh agent
+	# shellcheck source=/dev/null
 	. "${BASH_SOURCE[0]}"
 }
 
@@ -198,11 +223,13 @@ __ssh_agent_init
 
 # Unset functions ##############################################################
 
-# __ssh_agent_match is kept: ssh_agent_reset calls it after this file is sourced
+# __ssh_agent_match and __ssh_agent_paths are kept: ssh_agent_reset calls them
+# after this file is sourced
 unset -f __ssh_agent_reachable
 unset -f __ssh_agent_cmdline
 unset -f __ssh_agent_owns
 unset -f __ssh_agent_lock
 unset -f __ssh_agent_init
+unset __ssh_agent_args
 
 ################################################################################

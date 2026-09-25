@@ -8,12 +8,12 @@
 # Aliases
 ################################################################################
 
-alias which='type -all'
-alias path='echo -e ${PATH//:/\\n}'
+alias which='type -a'
+alias path='tr : "\n" <<< "$PATH"'
 alias disp='echo $DISPLAY'
 
 if type cygpath > /dev/null 2>&1; then
-	alias winpwd='cygpath -w $(pwd)'
+	alias winpwd='cygpath -w "$PWD"'
 fi
 
 if type explorer.exe > /dev/null 2>&1; then
@@ -23,7 +23,13 @@ fi
 # The 'ls' family ##############################################################
 
 if [ -x /usr/bin/dircolors ]; then
-	test -r "${HOME}/.dircolors" && eval $(dircolors -b "${HOME}/.dircolors") || eval $(dircolors -b)
+	if [ -r "${HOME}/.dircolors" ]; then
+		eval "$(dircolors -b "${HOME}/.dircolors")"
+	elif __cache_output dircolors dircolors -b; then
+		# The default colours only change with dircolors itself: cached
+		# shellcheck source=/dev/null disable=SC2154 # set by __cache_output
+		. "$__cache_file"
+	fi
 fi
 
 if ls --color=auto -d > /dev/null 2>&1; then
@@ -37,15 +43,10 @@ alias lt='ls -ltr'          # Sort by date
 
 # The 'grep' family ############################################################
 
-if (echo a | grep --color=auto a) > /dev/null 2>&1; then
+# One probe (no subshell): every grep supporting --color also has -E and -F
+if grep --color=auto -q a <<< a 2> /dev/null; then
 	alias grep='grep --color=auto'
-fi
-
-if (echo a | grep -F --color=auto a) > /dev/null 2>&1; then
 	alias fgrep='grep -F --color=auto'
-fi
-
-if (echo a | grep -E --color=auto a) > /dev/null 2>&1; then
 	alias egrep='grep -E --color=auto'
 fi
 
@@ -56,7 +57,7 @@ fi
 # Find duplicate files
 
 function dups() {
-	find $* -type d -name .git -prune -false \
+	find "$@" -type d -name .git -prune -false \
 		-o -type f ! -empty -exec sha1sum {} + | \
 		sort -k1,1 | uniq -w40 -d --all-repeated=separate
 }
@@ -73,23 +74,31 @@ function hgrep () {
 function xtitle () {
 
 	case $TERM in
-		xterm* | screen* | rxvt | cygwin )
-			echo -e -n "\033]0;$*\007"
+		xterm* | tmux* | screen* | rxvt* | alacritty | wezterm | foot* | cygwin )
+			printf '\033]0;%s\007' "$*"
 		;;
 	esac
 }
 
 # Misc.
 
-function man () {
+# Only where man exists (Git Bash has none). The prompt sets the window title
+# again once man exits.
+if type man > /dev/null 2>&1; then
+	function man () {
 
-	xtitle The $(basename ${@:$#} | tr -d .[:digit:]) manual
-	command man "$@"
-}
+		if (( $# )); then
+			xtitle "The $(basename "${@:$#}" | tr -d '.[:digit:]') manual"
+		fi
+		command man "$@"
+	}
+fi
 
+# Path of the program run for a command, even when the name is also an alias
+# or a function
 function where() {
 
-	which $1 2> /dev/null | head -1 | sed 's/^[^/]*//'
+	type -P "$1"
 }
 
 ################################################################################

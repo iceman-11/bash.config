@@ -1,0 +1,5 @@
+# Whitespace-only commits, ignored by git blame
+# (git config blame.ignoreRevsFile .git-blame-ignore-revs)
+
+# Use tabs for indentation in all plugins
+081184cec0c130278689b2f1f5085280f5fa3b15
