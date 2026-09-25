@@ -19,7 +19,6 @@ __cleanup_history() {
 
 	# Try to acquire lock
 	mkdir "$lockdir" 2>/dev/null || return 0
-	trap 'rmdir "$lockdir" 2>/dev/null' EXIT
 
 	# Size before reading: what other shells append meanwhile is kept below
 	size=$(wc -c < "$HISTFILE")
@@ -59,7 +58,6 @@ __cleanup_history() {
 
 	# Release lock
 	rmdir "$lockdir" 2>/dev/null
-	trap - EXIT
 }
 
 # Run the clean-up at most once a day: it starts several processes, which is
