@@ -35,17 +35,56 @@ export XAUTHORITY=${XAUTHORITY:=${HOME}/.Xauthority}
 ################################################################################
 
 function __set_locale {
-	local preference locale
-	local -a locales
+	local preference locale var key
+	local -a locales lc_vars=()
+	local -A installed=()
 
-	# Keep a UTF-8 language set by the system, the terminal or a parent
-	# shell; C.UTF-8 (the bare default of WSL and containers) is replaced
+	# Categories set one by one (e.g. by KDE Plasma's formats, or sent by an
+	# SSH client); LC_ALL is never set by this configuration
+	for var in LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES \
+		LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION; do
+		[[ -n ${!var:-} ]] && lc_vars+=("$var")
+	done
+
+	# Nothing to check or choose (no process started): a UTF-8 LANG other
+	# than C.UTF-8, set by the system, the terminal or a parent shell, and no
+	# LC_* variable. Such a LANG is trusted: checking it would cost a process
+	# at every start-up (slow on Git Bash); it is checked below when the
+	# locale list is read anyway.
 	case ${LANG,,} in
 		c.* | posix.*) ;;
-		*.utf8 | *.utf-8) return ;;
+		*.utf8 | *.utf-8) (( ${#lc_vars[@]} )) || return ;;
 	esac
 
 	mapfile -t locales < <(locale -a 2> /dev/null)
+
+	# Installed locales, named the way glibc compares them: en_GB.UTF-8 is
+	# listed as en_GB.utf8 (case and '-' in the codeset do not matter)
+	for locale in "${locales[@]}"; do
+		[[ -n $locale ]] || continue
+		key=${locale,,}
+		installed[${key//-/}]=1
+	done
+
+	# Without a list of installed locales (e.g. musl), nothing can be checked
+	(( ${#installed[@]} )) || return 0
+
+	# An LC_* variable naming a locale that is not installed (e.g. en_BE.UTF-8,
+	# which KDE offers but glibc does not have) makes programs warn (perl) or
+	# fall back to C: drop it, so that the category follows LANG
+	for var in "${lc_vars[@]}"; do
+		key=${!var,,}
+		[[ -n ${installed[${key//-/}]:-} ]] || unset "$var"
+	done
+
+	# Keep a UTF-8 LANG that is installed, except C.UTF-8
+	case ${LANG,,} in
+		c.* | posix.*) ;;
+		*.utf8 | *.utf-8)
+			key=${LANG,,}
+			[[ -n ${installed[${key//-/}]:-} ]] && return
+			;;
+	esac
 
 	# First available preference, in either spelling (en_US.utf8 on Linux,
 	# en_US.UTF-8 elsewhere). Only LANG is set, so that LC_* settings still
