@@ -103,6 +103,28 @@ export PATH
 
 ################################################################################
 #
+# Shell Options
+#
+################################################################################
+
+set -o notify           # Report exit status of bg jobs immediately [-o]
+set +o noclobber        # Allow to overwrite file with redirection [+o]
+set +o ignoreeof        # Allow to exit with Ctrl-D [+o]
+set +o nounset          # Error when using an undefined variable [-o]
+
+shopt -s cdspell        # Correct misspelling of directory name
+shopt -s checkhash      # Check the hash table before path search
+shopt -s checkwinsize   # Update LINES and COLUMNS after each command
+
+shopt -s mailwarn
+shopt -s sourcepath     # The source built-in use PATH to find file
+shopt -s extglob        # Useful for programmable completion
+
+# Do not search $PATH on empty line completion
+shopt -s no_empty_cmd_completion
+
+################################################################################
+#
 # Source the scripts in plugin and local
 #
 ################################################################################
@@ -156,28 +178,6 @@ for __plugin in "${BASH_HOME}"/{init,init/local,plugin,plugin/local,post,post/lo
 done
 
 unset __plugin __cache_file
-
-################################################################################
-#
-# Shell Options
-#
-################################################################################
-
-set -o notify           # Report exit status of bg jobs immediately [-o]
-set +o noclobber        # Allow to overwrite file with redirection [+o]
-set +o ignoreeof        # Allow to exit with Ctrl-D [+o]
-set +o nounset          # Error when using an undefined variable [-o]
-
-shopt -s cdspell        # Correct misspelling of directory name
-shopt -s checkhash      # Check the hash table before path search
-shopt -s checkwinsize   # Update LINES and COLUMNS after each command
-
-shopt -s mailwarn
-shopt -s sourcepath     # The source built-in use PATH to find file
-shopt -s extglob        # Useful for programmable completion
-
-# Do not search $PATH on empty line completion
-shopt -s no_empty_cmd_completion
 
 ################################################################################
 # Clean-up functions
