@@ -127,9 +127,9 @@ checks='
 			echo "winpwd in a directory with a space: $(winpwd)" >&2
 		cd "$HOME"
 	fi
-	[[ $(TERM=tmux-256color xtitle "a\\tb") == $(printf "\033]0;%s\007" "a\\tb") ]] ||
+	[[ $(TERM=tmux-256color xtitle "a\\tb") == "$(printf "\033]0;%s\007" "a\\tb")" ]] ||
 		echo "xtitle: no title for TERM=tmux-256color or backslash interpreted" >&2
-	[[ $(TERM=xterm man 3 printf) == $(printf "\033]0;The printf manual\007") ]] ||
+	[[ $(TERM=xterm man 3 printf) == "$(printf "\033]0;The printf manual\007")" ]] ||
 		echo "man 3 printf: wrong window title" >&2
 	[[ -z $(TERM=xterm man) ]] || echo "man without a page sets a window title" >&2
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
