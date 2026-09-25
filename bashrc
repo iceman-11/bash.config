@@ -27,20 +27,26 @@ function __set_locale {
 	local preference locale
 	local -a locales
 
-	# Already set up by a parent shell: nothing to do
-	case ${LC_ALL,,} in
+	# Keep a UTF-8 language set by the system, the terminal or a parent
+	# shell; C.UTF-8 (the bare default of WSL and containers) is replaced
+	case ${LANG,,} in
+		c.* | posix.*) ;;
 		*.utf8 | *.utf-8) return ;;
 	esac
 
 	mapfile -t locales < <(locale -a 2> /dev/null)
 
-	for preference in en_US.utf8 en_GB.utf8 C.utf8; do
+	# First available preference, in either spelling (en_US.utf8 on Linux,
+	# en_US.UTF-8 elsewhere). Only LANG is set, so that LC_* settings still
+	# apply: LC_ALL would override all of them.
+	for preference in en_us en_gb c; do
 		for locale in "${locales[@]}"; do
-			if [[ $locale == "$preference" ]]; then
-				export LANG=$locale
-				export LC_ALL=$locale
-				return
-			fi
+			case ${locale,,} in
+				"${preference}.utf8" | "${preference}.utf-8")
+					export LANG=$locale
+					return
+					;;
+			esac
 		done
 	done
 }
