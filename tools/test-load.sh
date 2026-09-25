@@ -288,7 +288,9 @@ checks='
 	if [[ -n $(locale -a 2> /dev/null) ]]; then
 		lc=$(LC_MONETARY=xx_YY.UTF-8 LC_PAPER=C nested "printf %s \"\${LC_MONETARY-unset}/\${LC_PAPER-unset}\"")
 		[[ $lc == unset/C ]] || echo "LC_* not installed: LC_MONETARY/LC_PAPER = $lc (expected unset/C)" >&2
-		lang=$(LANG=xx_YY.UTF-8 nested "printf %s \"\$LANG\"")
+		# (a UTF-8 LANG alone is trusted without starting a process; it is
+		# checked when an LC_* variable makes the configuration read the list)
+		lang=$(LANG=xx_YY.UTF-8 LC_PAPER=C nested "printf %s \"\$LANG\"")
 		[[ $lang != xx_YY.UTF-8 ]] || echo "LANG not installed was kept: $lang" >&2
 	fi
 
