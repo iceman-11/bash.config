@@ -102,8 +102,20 @@ __ssh_agent_lock() {
 	return 1
 }
 
+# Set dir, sock, pidfile and lock for this host. The callers declare these
+# variables local: with bash's dynamic scoping, this sets the caller's.
+__ssh_agent_paths() {
+	local host=${HOSTNAME,,}
+
+	host=${host%%.*}
+	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
+	sock=$dir/$host.sock
+	pidfile=$dir/$host.pid
+	lock=$dir/$host.lock
+}
+
 __ssh_agent_init() {
-	local host dir sock pidfile lock pid output
+	local dir sock pidfile lock pid output
 
 	# Reuse any agent that already answers (forwarded, desktop, systemd, ...)
 	if __ssh_agent_reachable; then
@@ -115,12 +127,7 @@ __ssh_agent_init() {
 		return
 	fi
 
-	host=${HOSTNAME,,}
-	host=${host%%.*}
-	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
-	sock=$dir/$host.sock
-	pidfile=$dir/$host.pid
-	lock=$dir/$host.lock
+	__ssh_agent_paths
 
 	if [[ ! -d $dir ]]; then
 		mkdir -p "$dir" && chmod 700 "$dir" || return 1
@@ -176,14 +183,11 @@ __ssh_agent_init() {
 }
 
 ssh_agent_reset() {
-	local all=0 host dir sock proc pid args
+	local all=0 dir sock pidfile lock proc pid args
 
 	[[ ${1:-} == --all ]] && all=1
 
-	host=${HOSTNAME,,}
-	host=${host%%.*}
-	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
-	sock=$dir/$host.sock
+	__ssh_agent_paths
 
 	# List "pid args" of all processes
 	{
@@ -202,7 +206,7 @@ ssh_agent_reset() {
 		fi
 	done
 
-	rm -f "$sock" "$dir/$host.pid"
+	rm -f "$sock" "$pidfile"
 
 	if (( all )) || [[ ${SSH_AUTH_SOCK:-} == "$sock" ]]; then
 		unset SSH_AUTH_SOCK SSH_AGENT_PID
@@ -219,7 +223,8 @@ __ssh_agent_init
 
 # Unset functions ##############################################################
 
-# __ssh_agent_match is kept: ssh_agent_reset calls it after this file is sourced
+# __ssh_agent_match and __ssh_agent_paths are kept: ssh_agent_reset calls them
+# after this file is sourced
 unset -f __ssh_agent_reachable
 unset -f __ssh_agent_cmdline
 unset -f __ssh_agent_owns
