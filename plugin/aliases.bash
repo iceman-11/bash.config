@@ -8,12 +8,12 @@
 # Aliases
 ################################################################################
 
-alias which='type -all'
-alias path='echo -e ${PATH//:/\\n}'
+alias which='type -a'
+alias path='tr : "\n" <<< "$PATH"'
 alias disp='echo $DISPLAY'
 
 if type cygpath > /dev/null 2>&1; then
-	alias winpwd='cygpath -w $(pwd)'
+	alias winpwd='cygpath -w "$PWD"'
 fi
 
 if type explorer.exe > /dev/null 2>&1; then
@@ -74,23 +74,31 @@ function hgrep () {
 function xtitle () {
 
 	case $TERM in
-		xterm* | screen* | rxvt | cygwin )
-			echo -e -n "\033]0;$*\007"
+		xterm* | tmux* | screen* | rxvt* | alacritty | wezterm | foot* | cygwin )
+			printf '\033]0;%s\007' "$*"
 		;;
 	esac
 }
 
 # Misc.
 
-function man () {
+# Only where man exists (Git Bash has none). The prompt sets the window title
+# again once man exits.
+if type man > /dev/null 2>&1; then
+	function man () {
 
-	xtitle "The $(basename "${@:$#}" | tr -d '.[:digit:]') manual"
-	command man "$@"
-}
+		if (( $# )); then
+			xtitle "The $(basename "${@:$#}" | tr -d '.[:digit:]') manual"
+		fi
+		command man "$@"
+	}
+fi
 
+# Path of the program run for a command, even when the name is also an alias
+# or a function
 function where() {
 
-	which $1 2> /dev/null | head -1 | sed 's/^[^/]*//'
+	type -P "$1"
 }
 
 ################################################################################
