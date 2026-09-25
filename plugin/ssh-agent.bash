@@ -36,16 +36,24 @@ fi
 
 # True if an agent answers on $SSH_AUTH_SOCK (ssh-add exit code 2: unreachable)
 __ssh_agent_reachable() {
+	# Without a socket there is nothing to ask (saves starting ssh-add)
+	[[ -n ${SSH_AUTH_SOCK:-} ]] || return 1
+
 	ssh-add -l > /dev/null 2>&1
 	[[ $? -ne 2 ]]
 }
 
-# Print the command line of process $1
+# Set __ssh_agent_args to the command line of process $1 (read without a
+# subshell where /proc exists: starting processes is slow on Git Bash)
 __ssh_agent_cmdline() {
+	local IFS=' '
+	local -a args
+
 	if [[ -r /proc/$1/cmdline ]]; then
-		tr '\0' ' ' < "/proc/$1/cmdline"
+		mapfile -d '' -t args < "/proc/$1/cmdline"
+		__ssh_agent_args="${args[*]}"
 	else
-		ps -p "$1" -o args= 2> /dev/null
+		__ssh_agent_args=$(ps -p "$1" -o args= 2> /dev/null)
 	fi
 }
 
@@ -58,7 +66,8 @@ __ssh_agent_match() {
 # True if process $1 is the ssh-agent listening on socket $2
 __ssh_agent_owns() {
 	[[ $1 =~ ^[0-9]+$ ]] || return 1
-	__ssh_agent_match "$(__ssh_agent_cmdline "$1")" "$2"
+	__ssh_agent_cmdline "$1"
+	__ssh_agent_match "$__ssh_agent_args" "$2"
 }
 
 # Take the lock directory $1 (mkdir is atomic, also on NFS and in Git Bash).
@@ -99,14 +108,16 @@ __ssh_agent_init() {
 		return
 	fi
 
-	host=$(uname -n | tr '[:upper:]' '[:lower:]')
+	host=${HOSTNAME,,}
 	host=${host%%.*}
 	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
 	sock=$dir/$host.sock
 	pidfile=$dir/$host.pid
 	lock=$dir/$host.lock
 
-	mkdir -p "$dir" && chmod 700 "$dir" || return 1
+	if [[ ! -d $dir ]]; then
+		mkdir -p "$dir" && chmod 700 "$dir" || return 1
+	fi
 
 	export SSH_AUTH_SOCK=$sock
 
@@ -122,7 +133,8 @@ __ssh_agent_init() {
 		if ! __ssh_agent_reachable; then
 
 			# Kill our previous agent if it is still running without its socket
-			pid=$(cat "$pidfile" 2> /dev/null)
+			pid=
+			{ read -r pid < "$pidfile"; } 2> /dev/null
 			if __ssh_agent_owns "$pid" "$sock"; then
 				kill "$pid" 2> /dev/null
 			fi
@@ -138,16 +150,17 @@ __ssh_agent_init() {
 		fi
 
 		rm -rf "$lock"
-	fi
 
-	# Do not leave SSH_AUTH_SOCK pointing at a socket nobody listens on
-	if ! __ssh_agent_reachable; then
-		unset SSH_AUTH_SOCK SSH_AGENT_PID
-		return 1
+		# Do not leave SSH_AUTH_SOCK pointing at a socket nobody listens on
+		if ! __ssh_agent_reachable; then
+			unset SSH_AUTH_SOCK SSH_AGENT_PID
+			return 1
+		fi
 	fi
 
 	# Export SSH_AGENT_PID so that 'ssh-agent -k' works
-	pid=$(cat "$pidfile" 2> /dev/null)
+	pid=
+	{ read -r pid < "$pidfile"; } 2> /dev/null
 	if __ssh_agent_owns "$pid" "$sock"; then
 		export SSH_AGENT_PID=$pid
 	else
@@ -160,7 +173,7 @@ ssh_agent_reset() {
 
 	[[ ${1:-} == --all ]] && all=1
 
-	host=$(uname -n | tr '[:upper:]' '[:lower:]')
+	host=${HOSTNAME,,}
 	host=${host%%.*}
 	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
 	sock=$dir/$host.sock
@@ -205,5 +218,6 @@ unset -f __ssh_agent_cmdline
 unset -f __ssh_agent_owns
 unset -f __ssh_agent_lock
 unset -f __ssh_agent_init
+unset __ssh_agent_args
 
 ################################################################################
