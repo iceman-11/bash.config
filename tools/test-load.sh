@@ -59,6 +59,9 @@ chmod +x "$sandbox/inherited/man"
 # the variable marked as removed), in the -s format when asked like tmux
 cat > "$sandbox/inherited/tmux" <<'EOF'
 #!/bin/sh
+if [ "$1" = ls ]; then
+	cat "$HOME/tmux-sessions" 2> /dev/null
+fi
 if [ "$1" = show-environment ]; then
 	echo x >> "$HOME/tmux-calls"
 	line=$(cat "$HOME/tmux-env" 2> /dev/null)
@@ -74,6 +77,30 @@ fi
 exit 0
 EOF
 chmod +x "$sandbox/inherited/tmux"
+
+# Stand-ins: fd (fzf settings), an fzf older than 0.48 (no --bash), and for a
+# simulated WSL: cmd.exe printing the Windows profile, wslpath converting it
+printf '#!/bin/sh\nexit 0\n' > "$sandbox/inherited/fd"
+printf '#!/bin/sh\n[ "$1" = --bash ] && { echo "unknown option: --bash" >&2; exit 2; }\nexit 0\n' \
+	> "$sandbox/inherited/fzf"
+cat > "$sandbox/inherited/cmd.exe" <<'EOF'
+#!/bin/sh
+# Like cmd.exe /c "echo %USERPROFILE%": a Windows path, CRLF line ending
+printf '%s\r\n' 'C:\Users\tester'
+EOF
+cat > "$sandbox/inherited/wslpath" <<'EOF'
+#!/bin/sh
+[ "$1" = -u ] && shift
+if [ "$1" = 'C:\Users\tester' ]; then echo "$HOME/winprofile"; else echo "$1"; fi
+EOF
+chmod +x "$sandbox/inherited/fd" "$sandbox/inherited/fzf" "$sandbox/inherited/cmd.exe" "$sandbox/inherited/wslpath"
+mkdir -p "$sandbox/winprofile/projects"
+
+# A stale ssh-agent lock without a pid file (its holder died before writing
+# it): the plugin must not wait for it
+host=${HOSTNAME,,}
+mkdir -p "$sandbox/.local/state/ssh-agent/${host%%.*}.lock"
+touch -d "2000-01-01" "$sandbox/.local/state/ssh-agent/${host%%.*}.lock"
 
 # Minimal environment; keep what Git Bash needs to run Windows programs
 env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH" TERM=xterm-256color USER="${USER:-ci}")
@@ -204,6 +231,57 @@ checks='
 		unset TMUX
 		SSH_AUTH_SOCK=$real_sock
 	fi
+
+	# A nested interactive shell with this configuration: run "$@" in it
+	nested() { "$BASH" --rcfile "$HOME/.config/bash/bashrc" -ic "$*" 2> /dev/null < /dev/null; }
+
+	# git.bash: __git_ps1 is defined wherever git-prompt.sh is installed
+	for f in /usr/lib/git-core/git-sh-prompt \
+		/usr/share/git-core/contrib/completion/git-prompt.sh \
+		/usr/share/git/completion/git-prompt.sh \
+		/mingw64/share/git/completion/git-prompt.sh; do
+		if [[ -r $f ]]; then
+			declare -F __git_ps1 > /dev/null || echo "__git_ps1 not defined although $f exists" >&2
+			break
+		fi
+	done
+
+	# vim.bash: an editor is chosen, and VISUAL is the same
+	[[ -n ${EDITOR:-} && ${VISUAL:-} == "$EDITOR" ]] ||
+		echo "EDITOR/VISUAL: \"${EDITOR-}\" / \"${VISUAL-}\"" >&2
+
+	# fzf.bash: the fd settings also apply under mintty (the stand-in fzf is
+	# older than 0.48: an error message would show up as unexpected output)
+	[[ -n $(unset FZF_DEFAULT_COMMAND; TERM_PROGRAM=mintty nested "printf %s \"\$FZF_DEFAULT_COMMAND\"") ]] ||
+		echo "fzf: fd settings skipped under mintty" >&2
+
+	# zoxide.bash: cd and cdi are zoxide functions (where zoxide is installed),
+	# and z is an alias of cd
+	if type zoxide > /dev/null 2>&1; then
+		[[ $(type -t cd) == function && $(type -t cdi) == function ]] ||
+			echo "zoxide: cd is a(n) $(type -t cd), cdi is a(n) $(type -t cdi)" >&2
+	fi
+	[[ $(alias z 2> /dev/null) == *cd* ]] || echo "z is not an alias of cd" >&2
+
+	# tmux.bash: session list (stand-in tmux), with singular and plural
+	printf "main:1\nwork:3\n" > "$HOME/tmux-sessions"
+	list=$(nested true)
+	[[ $list == *"(1 window)"* && $list == *"(3 windows)"* ]] ||
+		echo "tmux session list: $list" >&2
+	rm -f "$HOME/tmux-sessions"
+
+	# windows.bash: cdp goes to <Windows profile>/projects
+	if type cygpath > /dev/null 2>&1; then
+		dir=$(USERPROFILE=$(cygpath -w "$HOME/winprofile") nested "cdp && pwd")
+		[[ $dir == "$HOME/winprofile/projects" ]] || echo "cdp (Git Bash): \"$dir\"" >&2
+	elif [[ $OSTYPE == linux* ]]; then
+		dir=$(WSL_DISTRO_NAME=Test nested "cdp && pwd")
+		[[ $dir == "$HOME/winprofile/projects" ]] || echo "cdp (WSL, via cmd.exe): \"$dir\"" >&2
+		dir=$(WSL_DISTRO_NAME=Test USERPROFILE="$HOME/winprofile" nested "cdp && pwd")
+		[[ $dir == "$HOME/winprofile/projects" ]] || echo "cdp (WSL, USERPROFILE set): \"$dir\"" >&2
+		[[ -z $(nested "type -t cdp") ]] || echo "cdp defined outside WSL and Git Bash" >&2
+	fi
+
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
 	exit 0
 '
