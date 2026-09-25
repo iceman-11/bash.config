@@ -82,11 +82,17 @@ function xtitle () {
 
 # Misc.
 
-function man () {
+# Only where man exists (Git Bash has none). The prompt sets the window title
+# again once man exits.
+if type man > /dev/null 2>&1; then
+	function man () {
 
-	xtitle "The $(basename "${@:$#}" | tr -d '.[:digit:]') manual"
-	command man "$@"
-}
+		if (( $# )); then
+			xtitle "The $(basename "${@:$#}" | tr -d '.[:digit:]') manual"
+		fi
+		command man "$@"
+	}
+fi
 
 # Path of the program run for a command, even when the name is also an alias
 # or a function
