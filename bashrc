@@ -94,8 +94,20 @@ function __merge_paths {
 	PATH=$path
 }
 
-### Default PATH
-PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${PATH}
+# The inherited PATH is never reordered: a nested shell, a tmux pane or a
+# shell started from an activated venv keeps the order it was given.
+
+### Home bin directories first, when the inherited PATH does not have them
+for __dir in "${HOME}/bin" "${HOME}/.local/bin"; do
+	case ":${PATH}:" in
+		*":${__dir}:"*) ;;
+		*) PATH="${__dir}:${PATH}" ;;
+	esac
+done
+unset __dir
+
+### Default PATH last, for the directories that are missing
+PATH+=:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 
 ### OS Specific PATH
 case $OSTYPE in
@@ -104,8 +116,8 @@ case $OSTYPE in
 	;;
 esac
 
-### Add home directory, clean-up and export PATH
-__merge_paths "${PATH}:${HOME}/.local/bin:${HOME}/bin"
+### Clean-up (duplicates, non-existent directories) and export PATH
+__merge_paths "${PATH}"
 export PATH
 
 ################################################################################
