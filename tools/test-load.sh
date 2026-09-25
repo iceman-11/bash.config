@@ -54,6 +54,27 @@ mkdir -p "$sandbox/inherited" "$sandbox/venv" "$sandbox/.local/bin" "$sandbox/bi
 printf '#!/bin/sh\nexit 0\n' > "$sandbox/inherited/man"
 chmod +x "$sandbox/inherited/man"
 
+# A stand-in tmux: logs each show-environment call to ~/tmux-calls and
+# answers with the line in ~/tmux-env ("VAR=value", or "-VAR" when tmux has
+# the variable marked as removed), in the -s format when asked like tmux
+cat > "$sandbox/inherited/tmux" <<'EOF'
+#!/bin/sh
+if [ "$1" = show-environment ]; then
+	echo x >> "$HOME/tmux-calls"
+	line=$(cat "$HOME/tmux-env" 2> /dev/null)
+	if [ "$2" = -s ]; then
+		case $line in
+			-*) echo "unset ${line#-};" ;;
+			*=*) echo "${line%%=*}=\"${line#*=}\"; export ${line%%=*};" ;;
+		esac
+	else
+		echo "$line"
+	fi
+fi
+exit 0
+EOF
+chmod +x "$sandbox/inherited/tmux"
+
 # Minimal environment; keep what Git Bash needs to run Windows programs
 env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH" TERM=xterm-256color USER="${USER:-ci}")
 for var in MSYSTEM SYSTEMROOT TMP TEMP; do
@@ -65,7 +86,10 @@ done
 # ssh-agent plugin started.
 # shellcheck disable=SC2016
 checks='
-	eval "$PROMPT_COMMAND"
+	# What bash runs before each prompt (PROMPT_COMMAND may be an array)
+	run_prompt() { local c; for c in "${PROMPT_COMMAND[@]}"; do eval "$c"; done; }
+
+	run_prompt
 	for fn in hgrep xtitle where; do
 		[[ $(type -t "$fn") == function ]] || echo "MISSING function $fn" >&2
 	done
@@ -113,7 +137,7 @@ checks='
 	[[ -v HISTTIMEFORMAT && -z $HISTTIMEFORMAT ]] ||
 		echo "HISTTIMEFORMAT is not set to an empty value: ${HISTTIMEFORMAT-<unset>}" >&2
 	history -s "$(printf "for i in 1 2\ndo\n  echo \$i\ndone")"
-	eval "$PROMPT_COMMAND"
+	run_prompt
 	(( $(fc -ln -1 | wc -l) == 4 )) ||
 		echo "multi-line history entry split by the per-prompt reload: $(fc -ln -1)" >&2
 
@@ -132,6 +156,54 @@ checks='
 	[[ $(TERM=xterm man 3 printf) == "$(printf "\033]0;The printf manual\007")" ]] ||
 		echo "man 3 printf: wrong window title" >&2
 	[[ -z $(TERM=xterm man) ]] || echo "man without a page sets a window title" >&2
+
+	# prompt.bash: not exported (a child bash without this configuration
+	# would print raw escapes or "prompt_command: command not found")
+	[[ $(declare -p PS1 2> /dev/null) != "declare -x"* ]] || echo "PS1 is exported" >&2
+	env | grep -q "^PROMPT_COMMAND=" && echo "PROMPT_COMMAND is exported" >&2
+
+	# prompt.bash: fallback prompt (no oh-my-posh theme in the sandbox) shows
+	# the venv and the job count without subshells (only the git part runs one)
+	no_git=${PS1//\$(__git_ps1/}
+	[[ $no_git != *"\$("* ]] || echo "fallback prompt starts subshells: $PS1" >&2
+	[[ ${PS1@P} != *" !"* ]] || echo "fallback prompt shows jobs without jobs" >&2
+	{ sleep 5 & } 2> /dev/null
+	[[ ${PS1@P} == *" !1"* ]] || echo "fallback prompt: no job count with one job" >&2
+	kill $! 2> /dev/null
+	wait $! 2> /dev/null
+	[[ $(VIRTUAL_ENV=/x/app/.venv; printf %s "${PS1@P}") == *" (.venv)"* ]] ||
+		echo "fallback prompt: no venv name" >&2
+	title=$(TERM=alacritty "$BASH" --rcfile "$HOME/.config/bash/bashrc" \
+		-ic "printf %s \"\$PS1\"" 2> /dev/null < /dev/null)
+	[[ $title == *"\\033]0;"* ]] || echo "fallback prompt: no window title for TERM=alacritty" >&2
+
+	# prompt.bash: tmux SSH_AUTH_SOCK refresh, with the stand-in tmux and the
+	# socket of the agent the ssh-agent plugin started in the sandbox
+	if [[ -S ${SSH_AUTH_SOCK:-} ]]; then
+		real_sock=$SSH_AUTH_SOCK
+		export TMUX=/tmp/fake-tmux,1,0
+
+		# A stale socket is replaced by the one tmux has
+		printf "SSH_AUTH_SOCK=%s\n" "$real_sock" > "$HOME/tmux-env"
+		SSH_AUTH_SOCK=$HOME/stale.sock
+		run_prompt
+		[[ $SSH_AUTH_SOCK == "$real_sock" ]] ||
+			echo "tmux: stale SSH_AUTH_SOCK not replaced: ${SSH_AUTH_SOCK-<unset>}" >&2
+
+		# Marked as removed in tmux: not unset, and tmux asked at most once
+		# over several quick prompts
+		echo "-SSH_AUTH_SOCK" > "$HOME/tmux-env"
+		rm -f "$HOME/tmux-calls"
+		SSH_AUTH_SOCK=$HOME/stale.sock
+		for i in 1 2 3 4 5; do run_prompt; done
+		[[ ${SSH_AUTH_SOCK-} == "$HOME/stale.sock" ]] ||
+			echo "tmux: SSH_AUTH_SOCK changed to ${SSH_AUTH_SOCK-<unset>}" >&2
+		calls=$(cat "$HOME/tmux-calls" 2> /dev/null | wc -l)
+		(( calls <= 1 )) || echo "tmux: asked $calls times in 5 prompts" >&2
+
+		unset TMUX
+		SSH_AUTH_SOCK=$real_sock
+	fi
 	[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
 	exit 0
 '

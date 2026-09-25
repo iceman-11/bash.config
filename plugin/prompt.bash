@@ -2,27 +2,6 @@
 # Shell prompt
 ################################################################################
 
-function __jobs_ps1 {
-	local job_count
-	# Get the actual number of jobs
-	job_count=$(jobs | wc -l)
-
-	# Only display if there are jobs
-	if [ "$job_count" -gt 0 ]; then
-		printf " !%s" "$job_count"
-	fi
-}
-
-function __virtual_env_ps1 {
-	# Check if we're in a virtual environment
-	if [ -n "$VIRTUAL_ENV" ]; then
-		# Extract the virtual environment name from the path
-		local virtual_env_name
-		virtual_env_name=$(basename "$VIRTUAL_ENV")
-		printf " (%s)" "$virtual_env_name"
-	fi
-}
-
 function __set_prompt {
 
 	local __style_username=""
@@ -36,8 +15,10 @@ function __set_prompt {
 	local __style_end=""
 	local __style_reset=""
 
-	# Jobs prompt
-	local __prompt_jobs='$(__jobs_ps1)'
+	# Jobs prompt: " !<count>", only when there are jobs, without a subshell.
+	# Bash replaces \j with the count before expanding variables, so the
+	# index "\j>0" is 1 when there are jobs (see __ps1_jobs below).
+	local __prompt_jobs='${__ps1_jobs[\j>0]}${__ps1_jobs[\j>0]:+\j}'
 
 	# Git Prompt
 	local __prompt_git
@@ -45,8 +26,8 @@ function __set_prompt {
 		__prompt_git='$(__git_ps1 " [%s]")'
 	fi
 
-	# Virtual environment prompt
-	local __prompt_virtual_env='$(__virtual_env_ps1)'
+	# Virtual environment prompt: " (<name>)", without a subshell
+	local __prompt_virtual_env='${VIRTUAL_ENV:+ (${VIRTUAL_ENV##*/})}'
 
 	# Check if stdout is a terminal...
 	if test -t 1; then
@@ -79,7 +60,7 @@ function __set_prompt {
 
 	# Initialize and set window title
 	case $TERM in
-		xterm* | tmux* | screen* | rxvt | cygwin )
+		xterm* | tmux* | screen* | rxvt* | alacritty | wezterm | foot* | cygwin )
 			PS1="\[\033]0;\u@\h:\w\007\]"
 		;;
 
@@ -107,11 +88,12 @@ export VIRTUAL_ENV_DISABLE_PROMPT=1
 
 # Set theme
 THEME="${XDG_CONFIG_HOME}/oh-my-posh/themes/iceman.omp.json"
-if type oh-my-posh > /dev/null 2>&1 && [ -r $THEME ]; then
-	eval "$(oh-my-posh init bash --config ${THEME})" 2> /dev/null
+if type oh-my-posh > /dev/null 2>&1 && [ -r "$THEME" ]; then
+	eval "$(oh-my-posh init bash --config "$THEME")"
 else
+	# Used by the fallback prompt's job count: nothing without jobs
+	__ps1_jobs=("" " !")
 	__set_prompt
-	export PS1
 fi
 
 # Configure PROMPT_COMMAND
@@ -120,10 +102,22 @@ function prompt_command {
 	history -c  # Clear history
 	history -r  # Reload history from history file
 
-	# If running tmux and SSH_AUTH_SOCK is not a socket
-	if [ -n "$TMUX" ] && [ ! -S "$SSH_AUTH_SOCK" ]; then
-		# Refresh SSH_AUTH_SOCK
-		eval "$(tmux show-environment -s SSH_AUTH_SOCK 2> /dev/null)"
+	# In tmux, a pane keeps the SSH_AUTH_SOCK it was started with; after a
+	# reattach from a new 'ssh -A' session that socket is gone. Take the one
+	# tmux now has, if it is a socket (no eval: tmux may answer "unset ...").
+	# While none is valid, ask tmux at most every 10 seconds.
+	if [[ -n $TMUX && ! -S ${SSH_AUTH_SOCK:-} ]] &&
+		(( SECONDS - ${__prompt_tmux_asked:--10} >= 10 )); then
+		local sock
+		sock=$(tmux show-environment SSH_AUTH_SOCK 2> /dev/null)
+		sock=${sock#SSH_AUTH_SOCK=}
+
+		if [[ -S $sock ]]; then
+			export SSH_AUTH_SOCK=$sock
+			unset __prompt_tmux_asked
+		else
+			__prompt_tmux_asked=$SECONDS
+		fi
 	fi
 }
 
@@ -133,9 +127,14 @@ if [[ "$PROMPT_COMMAND" != *"prompt_command"* ]]; then
 	PROMPT_COMMAND+="prompt_command"
 fi
 
-export PROMPT_COMMAND
+# PS1 and PROMPT_COMMAND are not exported: every bash reading this
+# configuration sets its own, and other shells (sh, bash --norc) cannot use
+# them ("prompt_command: command not found"). Undo an export inherited from
+# an older shell.
+export -n PS1 PROMPT_COMMAND
 
 # Clean-up
-unset __set_prompt
+unset -f __set_prompt
+unset THEME
 
 ################################################################################
