@@ -8,9 +8,10 @@
 ################################################################################
 
 # Bail out early for non-interactive shells (e.g. login shells sourced by a
-# display manager during graphical session start-up). Without this, plugin
-# side effects below (ssh-agent, tmux, ...) can run in that context and hang
-# or break the session before the desktop ever appears.
+# display manager during graphical session start-up). Without this, the
+# XAUTHORITY default and plugin side effects below (ssh-agent, tmux, ...) can
+# run in that context and hang or break the session before the desktop ever
+# appears.
 case $- in
 	*i*) ;;
 	  *) return ;;
@@ -18,6 +19,16 @@ esac
 
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
 BASH_HOME="${XDG_CONFIG_HOME}/bash"
+
+################################################################################
+# Set XAUTHORITY
+################################################################################
+
+# Deliberate, do not remove: export the X cookie file explicitly. sudo
+# (env_keep), su and sudo -E change HOME, so without this X clients run as
+# root (e.g. after ssh -X then sudo -i) would look for the cookie in root's
+# home instead of the calling user's. A value already set is kept.
+export XAUTHORITY=${XAUTHORITY:=${HOME}/.Xauthority}
 
 ################################################################################
 # Set UTF-8 locale
