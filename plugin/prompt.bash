@@ -60,7 +60,7 @@ function __set_prompt {
 
 	# Initialize and set window title
 	case $TERM in
-		xterm* | tmux* | screen* | rxvt | cygwin )
+		xterm* | tmux* | screen* | rxvt* | alacritty | wezterm | foot* | cygwin )
 			PS1="\[\033]0;\u@\h:\w\007\]"
 		;;
 
