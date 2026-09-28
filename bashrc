@@ -137,18 +137,35 @@ function __merge_paths {
 #   path_prepend DIR...   in front of PATH, in the order given
 #   path_append DIR...    at the end of PATH, in the order given
 #
-# A folder that does not exist or is already in PATH is skipped: PATH is
-# never reordered. They change PATH directly (no subshell): call them as
-# commands, not as $(...).
+# A folder that does not exist is skipped. path_append never moves a folder
+# already in PATH. path_prepend moves it to the front, except while a shell
+# loads a PATH already arranged by a parent shell running this configuration
+# (BASHRC_PATH_READY, exported at the end of this file): a nested shell, a
+# tmux pane or a shell started from an activated venv keeps the order it was
+# given, so the venv stays first. They change PATH directly (no subshell):
+# call them as commands, not as $(...).
 function path_prepend {
-	local dir i
+	local dir i rest
 
 	for (( i = $#; i > 0; i-- )); do
 		dir=${!i}
 		[[ -d $dir ]] || continue
 		case ":${PATH}:" in
-			*":${dir}:"*) ;;
-			*) PATH=${dir}${PATH:+:${PATH}} ;;
+			*":${dir}:"*)
+				[[ -n ${__path_keep_order:-} ]] && continue
+
+				# Move it: remove every copy, then add it in front
+				rest=":${PATH}:"
+				while [[ $rest == *":${dir}:"* ]]; do
+					rest=${rest/":${dir}:"/:}
+				done
+				rest=${rest#:}
+				rest=${rest%:}
+				PATH=${dir}${rest:+:${rest}}
+				;;
+			*)
+				PATH=${dir}${PATH:+:${PATH}}
+				;;
 		esac
 	done
 }
@@ -165,10 +182,13 @@ function path_append {
 	done
 }
 
-# The inherited PATH is never reordered: a nested shell, a tmux pane or a
-# shell started from an activated venv keeps the order it was given.
+# A PATH already arranged by a parent shell running this configuration is not
+# reordered while loading (see path_prepend)
+if [[ -n ${BASHRC_PATH_READY:-} ]]; then
+	__path_keep_order=1
+fi
 
-### Home bin directories first, when the inherited PATH does not have them
+### Home bin directories first (moved there, unless PATH was already arranged)
 path_prepend "${HOME}/.local/bin" "${HOME}/bin"
 
 ### Default PATH last, for the directories that are missing
@@ -264,6 +284,12 @@ for __plugin in "${BASH_HOME}"/{init,init/local,plugin,plugin/local,post,post/lo
 done
 
 unset __plugin __cache_file
+
+# PATH is arranged (home folders, system folders, plugins): shells started
+# from this one keep its order while loading. At the prompt, path_prepend
+# moves folders again.
+export BASHRC_PATH_READY=1
+unset __path_keep_order
 
 ################################################################################
 # Clean-up functions
