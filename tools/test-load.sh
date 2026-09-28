@@ -50,6 +50,12 @@ printf 'case x in @(x|y)) ;; esac
 # nested shell, and the home bin directories
 mkdir -p "$sandbox/inherited" "$sandbox/venv" "$sandbox/.local/bin" "$sandbox/bin"
 
+# A local plugin calling path_prepend on a folder the inherited PATH already
+# lists at its end (like a folder of the Windows PATH): in a first shell it
+# must move to the front, in a nested shell it must stay where it is
+mkdir -p "$sandbox/pac"
+printf 'path_prepend "$HOME/pac"\n' > "$sandbox/.config/bash/plugin/local/zz-test-path.bash"
+
 # A stand-in 'man' (Git Bash has none), so that the man wrapper is defined
 printf '#!/bin/sh\nexit 0\n' > "$sandbox/inherited/man"
 chmod +x "$sandbox/inherited/man"
@@ -103,7 +109,7 @@ mkdir -p "$sandbox/.local/state/ssh-agent/${host%%.*}.lock"
 touch -d "2000-01-01" "$sandbox/.local/state/ssh-agent/${host%%.*}.lock"
 
 # Minimal environment; keep what Git Bash needs to run Windows programs
-env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH" TERM=xterm-256color USER="${USER:-ci}")
+env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH:$sandbox/pac" TERM=xterm-256color USER="${USER:-ci}")
 for var in MSYSTEM SYSTEMROOT TMP TEMP; do
 	[[ -n ${!var:-} ]] && env_vars+=("$var=${!var}")
 done
@@ -115,6 +121,14 @@ done
 checks='
 	# What bash runs before each prompt (PROMPT_COMMAND may be an array)
 	run_prompt() { local c; for c in "${PROMPT_COMMAND[@]}"; do eval "$c"; done; }
+
+	# Stop here if loading broke PATH (e.g. a plugin assigning it from a
+	# command that prints nothing): every later check would fail because of it
+	if [[ ":$PATH:" != *:/usr/bin:* ]]; then
+		echo "PATH broken after loading (check the plugins, including local/ ones): [${PATH:0:200}]" >&2
+		[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
+		exit 0
+	fi
 
 	run_prompt
 	for fn in hgrep xtitle where; do
@@ -130,11 +144,57 @@ checks='
 		*) echo "PATH lacks ~/.local/bin:~/bin:<inherited> in this order: ${PATH:0:200}" >&2 ;;
 	esac
 
-	# A nested shell keeps the PATH it inherits unchanged (e.g. a venv first)
+	# First shell (PATH not arranged yet): the folder a plugin passes to
+	# path_prepend is moved to the front, although the inherited PATH already
+	# listed it at its end, and only listed once
+	[[ $PATH == "$HOME/pac:"* ]] ||
+		echo "path_prepend in a plugin, first shell: not moved first: ${PATH:0:200}" >&2
+	[[ ":$PATH:" != *":$HOME/pac:"*":$HOME/pac:"* ]] ||
+		echo "path_prepend left a duplicate: ${PATH:0:200}" >&2
+
+	# The shell marks PATH as arranged for the shells it starts
+	[[ $(declare -p BASHRC_PATH_READY 2> /dev/null) == "declare -x"* ]] ||
+		echo "BASHRC_PATH_READY is not exported" >&2
+
+	# A nested shell keeps the PATH it inherits unchanged (e.g. a venv first),
+	# including the folder the plugin passes to path_prepend
 	nested=$(PATH="$HOME/venv:$PATH" "$BASH" --rcfile "$HOME/.config/bash/bashrc" \
 		-ic "printf %s \"\$PATH\"" 2> /dev/null < /dev/null)
 	[[ $nested == "$HOME/venv:$PATH"* ]] ||
 		echo "PATH reordered in a nested shell: ${nested:0:200}" >&2
+
+	# A shell without the mark (e.g. a new window, inheriting the Windows
+	# PATH) brings ~/.local/bin to the front even if it is already listed
+	fresh=$(unset BASHRC_PATH_READY; PATH="/usr/bin:$HOME/.local/bin:/bin" \
+		"$BASH" --rcfile "$HOME/.config/bash/bashrc" \
+		-ic "printf %s \"\$PATH\"" 2> /dev/null < /dev/null)
+	[[ $fresh == *"$HOME/.local/bin:$HOME/bin:/usr/bin:"* &&
+		$fresh != *"/usr/bin:"*"$HOME/.local/bin"* ]] ||
+		echo "new shell: ~/.local/bin not moved to the front: ${fresh:0:200}" >&2
+
+	# path_prepend / path_append: helpers for plugins, kept after loading.
+	# Existing folders only, no duplicates, arguments in the order given.
+	mkdir -p "$HOME/p1" "$HOME/p2" "$HOME/p 3"
+	if [[ $(type -t path_prepend) == function && $(type -t path_append) == function ]]; then
+		result=$(
+			PATH=/usr/bin
+			path_prepend "$HOME/p1" "$HOME/p2" "$HOME/missing" /usr/bin
+			path_append "$HOME/p2" "$HOME/p 3" "$HOME/missing"
+			printf %s "$PATH"
+		)
+		[[ $result == "$HOME/p1:$HOME/p2:/usr/bin:$HOME/p 3" ]] ||
+			echo "path_prepend/path_append gave: $result" >&2
+
+		# At the prompt, path_prepend moves a folder already in PATH to the
+		# front (every copy of it), path_append leaves it where it is
+		moved=$(PATH="/usr/bin:$HOME/p1:/bin:$HOME/p1"; path_prepend "$HOME/p1"; printf %s "$PATH")
+		[[ $moved == "$HOME/p1:/usr/bin:/bin" ]] ||
+			echo "path_prepend at the prompt gave: $moved" >&2
+		kept=$(PATH="$HOME/p1:/usr/bin"; path_append "$HOME/p1"; printf %s "$PATH")
+		[[ $kept == "$HOME/p1:/usr/bin" ]] || echo "path_append moved a folder: $kept" >&2
+	else
+		echo "MISSING function path_prepend or path_append" >&2
+	fi
 
 	# System tools come from /usr/bin, not from a Windows directory
 	if [[ -x /usr/bin/find ]]; then

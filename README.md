@@ -90,6 +90,8 @@ Put anything specific to one machine (work aliases, paths, secrets) in a
 | `path`                    | Print PATH, one directory per line          |
 | `glog`                    | Git history graph of all branches           |
 | `cdp`                     | cd to the Windows projects folder           |
+| `path_prepend DIR...`     | Put folders first in PATH (see below)       |
+| `path_append DIR...`      | Add folders at the end of PATH if missing   |
 | `ssh_agent_reset [--all]` | Restart the ssh-agent (`--all`: kill all)   |
 | `bash_cache_clear`        | Empty the cache described below             |
 
@@ -138,6 +140,24 @@ Writing a plugin
 
 - Plugins are sourced at the top level: variables and functions they
   define are global. Prefix helpers with `__` and `unset` them at the end.
+- Change PATH with `path_prepend` or `path_append`. Call them as commands,
+  not in `$(...)`:
+
+  ```bash
+  path_append /c/PAC/bin
+  ```
+
+  Both skip folders that don't exist. `path_append` adds a folder at the
+  end, and never moves one already in PATH. `path_prepend` puts a folder
+  first, **moving** it if PATH already lists it further back (e.g. from
+  the Windows PATH), except in a shell started from a shell that already
+  ran this configuration: a nested `bash`, a tmux pane, or a shell started
+  from an activated venv keeps the PATH it was given, so the venv stays
+  first. At the prompt, `path_prepend` always moves. (A shell marks its
+  PATH as arranged by exporting `BASHRC_PATH_READY`.)
+
+- Don't call functions whose name starts with `__` (like `__merge_paths`)
+  from your own plugins: they are internal and may change.
 - Avoid `$(...)` and external commands where a builtin does the job, and
   use `__cache_output` for generated shell code.
 - Print nothing on stderr: the load test treats it as a failure.
