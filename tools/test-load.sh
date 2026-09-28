@@ -116,6 +116,14 @@ checks='
 	# What bash runs before each prompt (PROMPT_COMMAND may be an array)
 	run_prompt() { local c; for c in "${PROMPT_COMMAND[@]}"; do eval "$c"; done; }
 
+	# Stop here if loading broke PATH (e.g. a plugin assigning it from a
+	# command that prints nothing): every later check would fail because of it
+	if [[ ":$PATH:" != *:/usr/bin:* ]]; then
+		echo "PATH broken after loading (check the plugins, including local/ ones): [${PATH:0:200}]" >&2
+		[[ -n ${SSH_AGENT_PID:-} ]] && kill "$SSH_AGENT_PID"
+		exit 0
+	fi
+
 	run_prompt
 	for fn in hgrep xtitle where; do
 		[[ $(type -t "$fn") == function ]] || echo "MISSING function $fn" >&2
@@ -135,6 +143,22 @@ checks='
 		-ic "printf %s \"\$PATH\"" 2> /dev/null < /dev/null)
 	[[ $nested == "$HOME/venv:$PATH"* ]] ||
 		echo "PATH reordered in a nested shell: ${nested:0:200}" >&2
+
+	# path_prepend / path_append: helpers for plugins, kept after loading.
+	# Existing folders only, no duplicates, arguments in the order given.
+	mkdir -p "$HOME/p1" "$HOME/p2" "$HOME/p 3"
+	if [[ $(type -t path_prepend) == function && $(type -t path_append) == function ]]; then
+		result=$(
+			PATH=/usr/bin
+			path_prepend "$HOME/p1" "$HOME/p2" "$HOME/missing" /usr/bin
+			path_append "$HOME/p2" "$HOME/p 3" "$HOME/missing"
+			printf %s "$PATH"
+		)
+		[[ $result == "$HOME/p1:$HOME/p2:/usr/bin:$HOME/p 3" ]] ||
+			echo "path_prepend/path_append gave: $result" >&2
+	else
+		echo "MISSING function path_prepend or path_append" >&2
+	fi
 
 	# System tools come from /usr/bin, not from a Windows directory
 	if [[ -x /usr/bin/find ]]; then
