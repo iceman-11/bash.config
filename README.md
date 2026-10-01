@@ -40,7 +40,10 @@ not `~/.bashrc`. Git for Windows creates a `~/.bash_profile` that loads
 ```
 
 The configuration only runs in interactive shells: scripts, `scp` and
-`rsync` are not affected.
+`rsync` are not affected. The one exception is PATH (home and system `bin`
+folders), which is also set up for commands run without a prompt, such as
+`sudo -i pihole -up` or `ssh host cmd`. That part prints nothing and starts
+no programs.
 
 Layout
 ------

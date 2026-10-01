@@ -7,102 +7,6 @@
 #
 ################################################################################
 
-# Bail out early for non-interactive shells (e.g. login shells sourced by a
-# display manager during graphical session start-up). Without this, the
-# XAUTHORITY default and plugin side effects below (ssh-agent, tmux, ...) can
-# run in that context and hang or break the session before the desktop ever
-# appears.
-case $- in
-	*i*) ;;
-	  *) return ;;
-esac
-
-export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
-BASH_HOME="${XDG_CONFIG_HOME}/bash"
-
-################################################################################
-# Set XAUTHORITY
-################################################################################
-
-# Deliberate, do not remove: export the X cookie file explicitly. sudo
-# (env_keep), su and sudo -E change HOME, so without this X clients run as
-# root (e.g. after ssh -X then sudo -i) would look for the cookie in root's
-# home instead of the calling user's. A value already set is kept.
-export XAUTHORITY=${XAUTHORITY:=${HOME}/.Xauthority}
-
-################################################################################
-# Set UTF-8 locale
-################################################################################
-
-function __set_locale {
-	local preference locale var key
-	local -a locales lc_vars=()
-	local -A installed=()
-
-	# Categories set one by one (e.g. by KDE Plasma's formats, or sent by an
-	# SSH client); LC_ALL is never set by this configuration
-	for var in LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES \
-		LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION; do
-		[[ -n ${!var:-} ]] && lc_vars+=("$var")
-	done
-
-	# Nothing to check or choose (no process started): a UTF-8 LANG other
-	# than C.UTF-8, set by the system, the terminal or a parent shell, and no
-	# LC_* variable. Such a LANG is trusted: checking it would cost a process
-	# at every start-up (slow on Git Bash); it is checked below when the
-	# locale list is read anyway.
-	case ${LANG,,} in
-		c.* | posix.*) ;;
-		*.utf8 | *.utf-8) (( ${#lc_vars[@]} )) || return ;;
-	esac
-
-	mapfile -t locales < <(locale -a 2> /dev/null)
-
-	# Installed locales, named the way glibc compares them: en_GB.UTF-8 is
-	# listed as en_GB.utf8 (case and '-' in the codeset do not matter)
-	for locale in "${locales[@]}"; do
-		[[ -n $locale ]] || continue
-		key=${locale,,}
-		installed[${key//-/}]=1
-	done
-
-	# Without a list of installed locales (e.g. musl), nothing can be checked
-	(( ${#installed[@]} )) || return 0
-
-	# An LC_* variable naming a locale that is not installed (e.g. en_BE.UTF-8,
-	# which KDE offers but glibc does not have) makes programs warn (perl) or
-	# fall back to C: drop it, so that the category follows LANG
-	for var in "${lc_vars[@]}"; do
-		key=${!var,,}
-		[[ -n ${installed[${key//-/}]:-} ]] || unset "$var"
-	done
-
-	# Keep a UTF-8 LANG that is installed, except C.UTF-8
-	case ${LANG,,} in
-		c.* | posix.*) ;;
-		*.utf8 | *.utf-8)
-			key=${LANG,,}
-			[[ -n ${installed[${key//-/}]:-} ]] && return
-			;;
-	esac
-
-	# First available preference, in either spelling (en_US.utf8 on Linux,
-	# en_US.UTF-8 elsewhere). Only LANG is set, so that LC_* settings still
-	# apply: LC_ALL would override all of them.
-	for preference in en_us en_gb c; do
-		for locale in "${locales[@]}"; do
-			case ${locale,,} in
-				"${preference}.utf8" | "${preference}.utf-8")
-					export LANG=$locale
-					return
-					;;
-			esac
-		done
-	done
-}
-
-__set_locale
-
 ################################################################################
 #
 # Setup PATH
@@ -205,6 +109,114 @@ esac
 ### and export
 __merge_paths "${PATH}"
 export PATH
+
+################################################################################
+# Stop here for non-interactive shells
+################################################################################
+
+# Bail out early for non-interactive shells (e.g. login shells sourced by a
+# display manager during graphical session start-up). Without this, the
+# XAUTHORITY default and plugin side effects below (ssh-agent, tmux, ...) can
+# run in that context and hang or break the session before the desktop ever
+# appears.
+#
+# PATH is set up above on purpose: it only uses built-ins, and commands run
+# without a prompt need it too (e.g. 'sudo -i pihole -up', whose secure_path
+# lacks /usr/local/bin, or 'ssh host cmd' for a tool in ~/.local/bin).
+case $- in
+	*i*) ;;
+	  *)
+		unset __path_keep_order
+		unset -f __merge_paths
+		return
+		;;
+esac
+
+export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
+BASH_HOME="${XDG_CONFIG_HOME}/bash"
+
+################################################################################
+# Set XAUTHORITY
+################################################################################
+
+# Deliberate, do not remove: export the X cookie file explicitly. sudo
+# (env_keep), su and sudo -E change HOME, so without this X clients run as
+# root (e.g. after ssh -X then sudo -i) would look for the cookie in root's
+# home instead of the calling user's. A value already set is kept.
+export XAUTHORITY=${XAUTHORITY:=${HOME}/.Xauthority}
+
+################################################################################
+# Set UTF-8 locale
+################################################################################
+
+function __set_locale {
+	local preference locale var key
+	local -a locales lc_vars=()
+	local -A installed=()
+
+	# Categories set one by one (e.g. by KDE Plasma's formats, or sent by an
+	# SSH client); LC_ALL is never set by this configuration
+	for var in LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES \
+		LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION; do
+		[[ -n ${!var:-} ]] && lc_vars+=("$var")
+	done
+
+	# Nothing to check or choose (no process started): a UTF-8 LANG other
+	# than C.UTF-8, set by the system, the terminal or a parent shell, and no
+	# LC_* variable. Such a LANG is trusted: checking it would cost a process
+	# at every start-up (slow on Git Bash); it is checked below when the
+	# locale list is read anyway.
+	case ${LANG,,} in
+		c.* | posix.*) ;;
+		*.utf8 | *.utf-8) (( ${#lc_vars[@]} )) || return ;;
+	esac
+
+	mapfile -t locales < <(locale -a 2> /dev/null)
+
+	# Installed locales, named the way glibc compares them: en_GB.UTF-8 is
+	# listed as en_GB.utf8 (case and '-' in the codeset do not matter)
+	for locale in "${locales[@]}"; do
+		[[ -n $locale ]] || continue
+		key=${locale,,}
+		installed[${key//-/}]=1
+	done
+
+	# Without a list of installed locales (e.g. musl), nothing can be checked
+	(( ${#installed[@]} )) || return 0
+
+	# An LC_* variable naming a locale that is not installed (e.g. en_BE.UTF-8,
+	# which KDE offers but glibc does not have) makes programs warn (perl) or
+	# fall back to C: drop it, so that the category follows LANG
+	for var in "${lc_vars[@]}"; do
+		key=${!var,,}
+		[[ -n ${installed[${key//-/}]:-} ]] || unset "$var"
+	done
+
+	# Keep a UTF-8 LANG that is installed, except C.UTF-8
+	case ${LANG,,} in
+		c.* | posix.*) ;;
+		*.utf8 | *.utf-8)
+			key=${LANG,,}
+			[[ -n ${installed[${key//-/}]:-} ]] && return
+			;;
+	esac
+
+	# First available preference, in either spelling (en_US.utf8 on Linux,
+	# en_US.UTF-8 elsewhere). Only LANG is set, so that LC_* settings still
+	# apply: LC_ALL would override all of them.
+	for preference in en_us en_gb c; do
+		for locale in "${locales[@]}"; do
+			case ${locale,,} in
+				"${preference}.utf8" | "${preference}.utf-8")
+					export LANG=$locale
+					return
+					;;
+			esac
+		done
+	done
+}
+
+__set_locale
 
 ################################################################################
 #
