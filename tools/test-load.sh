@@ -393,6 +393,10 @@ printf '. ~/.config/bash/bashrc\n' > "$sandbox/.bashrc"
 printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > "$sandbox/.bash_profile"
 
 noninteractive_env=(HOME="$sandbox" PATH=/sbin:/bin:/usr/sbin:/usr/bin USER="${USER:-ci}")
+
+# Full path of bash: that PATH may not have it (e.g. /usr/local/bin/bash in the
+# bash:4.4 image)
+bash_path=$(command -v "$BASH_BIN")
 for var in MSYSTEM SYSTEMROOT TMP TEMP; do
 	[[ -n ${!var:-} ]] && noninteractive_env+=("$var=${!var}")
 done
@@ -400,7 +404,7 @@ done
 # shellcheck disable=SC2016
 result=$(
 	cd "$sandbox" &&
-	env -i "${noninteractive_env[@]}" "$BASH_BIN" -l -c '
+	env -i "${noninteractive_env[@]}" "$bash_path" -l -c '
 		printf "%s\n" "$PATH"
 		type -t hgrep __merge_paths
 		printf "%s\n" "${BASHRC_PATH_READY:-}${__path_keep_order:-}"
