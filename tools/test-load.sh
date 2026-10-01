@@ -384,6 +384,49 @@ if [[ -n $unexpected ]]; then
 	status=1
 fi
 
+# Non-interactive login shell ##################################################
+
+# Like 'sudo -i pihole -up': a login shell running a command, started with
+# sudo's secure_path. ~/.bash_profile loads ~/.bashrc as the README says. PATH
+# must be set up, but nothing after the non-interactive guard may run.
+printf '. ~/.config/bash/bashrc\n' > "$sandbox/.bashrc"
+printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > "$sandbox/.bash_profile"
+
+noninteractive_env=(HOME="$sandbox" PATH=/sbin:/bin:/usr/sbin:/usr/bin USER="${USER:-ci}")
+for var in MSYSTEM SYSTEMROOT TMP TEMP; do
+	[[ -n ${!var:-} ]] && noninteractive_env+=("$var=${!var}")
+done
+
+# shellcheck disable=SC2016
+result=$(
+	cd "$sandbox" &&
+	env -i "${noninteractive_env[@]}" "$BASH_BIN" -l -c '
+		printf "%s\n" "$PATH"
+		type -t hgrep __merge_paths
+		printf "%s\n" "${BASHRC_PATH_READY:-}${__path_keep_order:-}"
+	' 2>&1 < /dev/null
+) || {
+	echo "FAIL non-interactive login shell exited with status $?"
+	status=1
+}
+
+path=${result%%$'\n'*}
+leftover=$(printf '%s\n' "$result" | tail -n +2 | grep -v '^$' || true)
+
+if [[ $path != "$sandbox/.local/bin:$sandbox/bin:"* ]]; then
+	echo "FAIL non-interactive: PATH lacks ~/.local/bin:~/bin in front: ${path:0:200}"
+	status=1
+fi
+if [[ -d /usr/local/bin && ":$path:" != *:/usr/local/bin:* ]]; then
+	echo "FAIL non-interactive: PATH lacks /usr/local/bin: ${path:0:200}"
+	status=1
+fi
+if [[ -n $leftover ]]; then
+	echo "FAIL non-interactive: loaded past the guard or left helpers behind:"
+	printf '%s\n' "$leftover" | sed 's/^/  /'
+	status=1
+fi
+
 if (( status == 0 )); then
 	echo "OK"
 fi
