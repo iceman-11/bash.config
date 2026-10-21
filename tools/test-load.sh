@@ -56,6 +56,19 @@ mkdir -p "$sandbox/inherited" "$sandbox/venv" "$sandbox/.local/bin" "$sandbox/bi
 mkdir -p "$sandbox/pac"
 printf 'path_prepend "$HOME/pac"\n' > "$sandbox/.config/bash/plugin/local/zz-test-path.bash"
 
+# A local plugin adding a folder the inherited PATH already lists without
+# removing that copy, once per shell tree (like 'brew shellenv' guarded by
+# HOMEBREW_PREFIX in homebrew.bash): PATH must not keep both
+mkdir -p "$sandbox/brew"
+# shellcheck disable=SC2016
+printf '[[ -n ${TEST_BREW:-} ]] || { export TEST_BREW=1; PATH="$HOME/brew:$PATH"; }\n' \
+	> "$sandbox/.config/bash/plugin/local/zz-test-brew.bash"
+
+# Debian and Ubuntu bash read /etc/bash.bashrc even with --rcfile; its sudo
+# hint (printed when this file is missing from HOME) would end up in the
+# output of the nested shells
+touch "$sandbox/.sudo_as_admin_successful"
+
 # A stand-in 'man' (Git Bash has none), so that the man wrapper is defined
 printf '#!/bin/sh\nexit 0\n' > "$sandbox/inherited/man"
 chmod +x "$sandbox/inherited/man"
@@ -109,7 +122,7 @@ mkdir -p "$sandbox/.local/state/ssh-agent/${host%%.*}.lock"
 touch -d "2000-01-01" "$sandbox/.local/state/ssh-agent/${host%%.*}.lock"
 
 # Minimal environment; keep what Git Bash needs to run Windows programs
-env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH:$sandbox/pac" TERM=xterm-256color USER="${USER:-ci}")
+env_vars=(HOME="$sandbox" PATH="$sandbox/inherited:$PATH:$sandbox/brew:$sandbox/pac"TERM=xterm-256color USER="${USER:-ci}")
 for var in MSYSTEM SYSTEMROOT TMP TEMP; do
 	[[ -n ${!var:-} ]] && env_vars+=("$var=${!var}")
 done
@@ -146,11 +159,19 @@ checks='
 
 	# First shell (PATH not arranged yet): the folder a plugin passes to
 	# path_prepend is moved to the front, although the inherited PATH already
-	# listed it at its end, and only listed once
+	# listed it at its end
 	[[ $PATH == "$HOME/pac:"* ]] ||
 		echo "path_prepend in a plugin, first shell: not moved first: ${PATH:0:200}" >&2
-	[[ ":$PATH:" != *":$HOME/pac:"*":$HOME/pac:"* ]] ||
-		echo "path_prepend left a duplicate: ${PATH:0:200}" >&2
+
+	# No folder listed twice (path_prepend, or a plugin prepending to PATH
+	# itself like the brew stand-in)
+	declare -A seen=()
+	IFS=: read -ra dirs <<< "$PATH"
+	for d in "${dirs[@]}"; do
+		[[ -n ${seen[$d]:-} ]] && echo "PATH lists $d twice: ${PATH:0:200}" >&2
+		seen[$d]=1
+	done
+	unset seen dirs d
 
 	# The shell marks PATH as arranged for the shells it starts
 	[[ $(declare -p BASHRC_PATH_READY 2> /dev/null) == "declare -x"* ]] ||
@@ -339,7 +360,11 @@ checks='
 		[[ $dir == "$HOME/winprofile/projects" ]] || echo "cdp (WSL, via cmd.exe): \"$dir\"" >&2
 		dir=$(WSL_DISTRO_NAME=Test USERPROFILE="$HOME/winprofile" nested "cdp && pwd")
 		[[ $dir == "$HOME/winprofile/projects" ]] || echo "cdp (WSL, USERPROFILE set): \"$dir\"" >&2
-		[[ -z $(nested "type -t cdp") ]] || echo "cdp defined outside WSL and Git Bash" >&2
+		# (on a WSL kernel, WSL is recognised without WSL_DISTRO_NAME)
+		release=$(< /proc/sys/kernel/osrelease)
+		if [[ ${release,,} != *microsoft* && ${release,,} != *wsl* ]]; then
+			[[ -z $(nested "type -t cdp") ]] || echo "cdp defined outside WSL and Git Bash" >&2
+		fi
 	fi
 
 	# bashrc: an LC_* variable or LANG naming a locale that is not installed
