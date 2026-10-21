@@ -4,7 +4,7 @@ if ! type git > /dev/null 2>&1; then
 	return
 fi
 
-alias glog='git log --graph --oneline --all'
+alias glog='git log --graph --oneline'
 
 # Delete local branches whose upstream is gone (e.g. deleted after a merge).
 # Uses for-each-ref instead of parsing "git branch -vv", and a read loop
