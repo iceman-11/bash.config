@@ -297,6 +297,10 @@ done
 
 unset __plugin __cache_file
 
+# Plugins may have added folders already listed (e.g. 'brew shellenv' prepends
+# its folders without removing the inherited copies): keep the first of each
+__merge_paths "${PATH}"
+
 # PATH is arranged (home folders, system folders, plugins): shells started
 # from this one keep its order while loading. At the prompt, path_prepend
 # moves folders again.
