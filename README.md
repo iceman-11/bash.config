@@ -40,16 +40,16 @@ not `~/.bashrc`. Git for Windows creates a `~/.bash_profile` that loads
 ```
 
 The configuration only runs in interactive shells: scripts, `scp` and
-`rsync` are not affected. The one exception is PATH (home and system `bin`
-folders), which is also set up for commands run without a prompt, such as
-`sudo -i pihole -up` or `ssh host cmd`. That part prints nothing and starts
-no programs.
+`rsync` are not affected. The exceptions are the XDG base directories and
+PATH (home and system `bin` folders), which are also set up for commands
+run without a prompt, such as `sudo -i pihole -up` or `ssh host cmd`. That
+part prints nothing and starts no programs.
 
 Layout
 ------
 
 ```text
-bashrc          Entry point: locale, PATH, plugin loader, shell options
+bashrc          Entry point: XDG, locale, PATH, plugin loader, shell options
 init/           Plugins loaded first (e.g. Homebrew, which changes PATH)
 plugin/         Plugins, one per tool
 post/           Plugins loaded last (optional)
@@ -103,8 +103,14 @@ Put anything specific to one machine (work aliases, paths, secrets) in a
 | Variable                  | Effect                                      |
 | ------------------------- | ------------------------------------------- |
 | `SSH_AGENT_FORCE_LOCAL=1` | Start a local agent even in an SSH session  |
-| `XDG_STATE_HOME`          | ssh-agent socket (`~/.local/state` default) |
+| `XDG_CONFIG_HOME`         | This configuration (`~/.config` default)    |
 | `XDG_CACHE_HOME`          | Where the cache lives (`~/.cache` default)  |
+| `XDG_DATA_HOME`           | Not used here (`~/.local/share` default)    |
+| `XDG_STATE_HOME`          | ssh-agent socket (`~/.local/state` default) |
+
+`bashrc` sets the four XDG base directories first, to the defaults above
+when they are not already set, and exports them, so plugins and programs
+started from the shell can rely on them.
 
 Start-up time and the cache
 ---------------------------
