@@ -7,8 +7,10 @@
 # The agent listens on a fixed socket, so a shell only has to point
 # SSH_AUTH_SOCK at it:
 #
-#   ${XDG_STATE_HOME:-~/.local/state}/ssh-agent/<host>.sock
-#   ${XDG_STATE_HOME:-~/.local/state}/ssh-agent/<host>.pid
+#   ${XDG_STATE_HOME}/ssh-agent/<host>.sock
+#   ${XDG_STATE_HOME}/ssh-agent/<host>.pid
+#
+# (XDG_STATE_HOME is set by bashrc, ~/.local/state by default.)
 #
 # Files are named after the host so that a home directory shared over NFS
 # does not mix up the agents of different systems.
@@ -108,7 +110,7 @@ __ssh_agent_paths() {
 	local host=${HOSTNAME,,}
 
 	host=${host%%.*}
-	dir=${XDG_STATE_HOME:-$HOME/.local/state}/ssh-agent
+	dir=${XDG_STATE_HOME}/ssh-agent
 	sock=$dir/$host.sock
 	pidfile=$dir/$host.pid
 	lock=$dir/$host.lock

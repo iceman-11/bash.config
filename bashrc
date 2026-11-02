@@ -9,6 +9,20 @@
 
 ################################################################################
 #
+# XDG base directories
+#
+################################################################################
+
+# Set once here, with the defaults of the XDG Base Directory specification, so
+# that this file and the plugins can rely on them. A value already set is
+# kept. Built-ins only: non-interactive shells get them too.
+export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
+export XDG_CACHE_HOME=${XDG_CACHE_HOME:=${HOME}/.cache}
+export XDG_DATA_HOME=${XDG_DATA_HOME:=${HOME}/.local/share}
+export XDG_STATE_HOME=${XDG_STATE_HOME:=${HOME}/.local/state}
+
+################################################################################
+#
 # Setup PATH
 #
 ################################################################################
@@ -132,7 +146,6 @@ case $- in
 		;;
 esac
 
-export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:=${HOME}/.config}
 BASH_HOME="${XDG_CONFIG_HOME}/bash"
 
 ################################################################################
@@ -246,7 +259,7 @@ shopt -s no_empty_cmd_completion
 #
 ################################################################################
 
-BASH_CACHE="${XDG_CACHE_HOME:-${HOME}/.cache}/bash"
+BASH_CACHE="${XDG_CACHE_HOME}/bash"
 
 # Cache the output of a slow command that generates shell code, e.g.
 # "fzf --bash". Usage from a plugin:
